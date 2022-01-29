@@ -2,8 +2,8 @@ io.stdout:setvbuf('no') -- This makes is so that print() statements print right 
 
 local sprite = 
 {
-  size = {59, 24},
-  pivot = {29, 24}
+  size = { x = 59, y = 24 },
+  pivot = { x = 29, y = 24 }
 }
 
 local origin_sprite = {}
@@ -49,7 +49,7 @@ function update_keyboard_state()
     KeyboardState.selected = "origin"
   end
   if love.keyboard.isDown('o') then
-    KeyboardState.origin = "destination"
+    KeyboardState.selected = "destination"
   end
   
   KeyboardState.move_up = love.keyboard.isDown('w')
@@ -63,6 +63,20 @@ end
 
 function love.update(dt)
   update_keyboard_state()
+
+  local updateable = nil
+  if KeyboardState.selected == "origin" then
+    updateable = origin
+  else
+    updateable = destination
+  end
+
+  if KeyboardState.move_down then updateable.position.y = updateable.position.y + 1 end
+  if KeyboardState.move_up then updateable.position.y = updateable.position.y - 1 end
+  if KeyboardState.move_left then updateable.position.x = updateable.position.x - 1 end
+  if KeyboardState.move_right then updateable.position.x = updateable.position.x + 1 end
+  if KeyboardState.rotate_cw then updateable.orientation = updateable.orientation - (math.pi / 32) end
+  if KeyboardState.rotate_ccw then updateable.orientation = updateable.orientation + (math.pi / 32) end
 end
 
 function love.keyreleased(key)
@@ -72,18 +86,15 @@ function love.keyreleased(key)
 end
 
 function love.draw()
-  --love.graphics.print("Hello World!", 400, 300)
-  print(destination.position.x)
-  --love.graphics.draw(destination.image, destination.position.x, destination.position.y)
 
   -- drawing the origin
-  love.graphics.draw(origin.image, origin.position.x, origin.position.y, origin.orientation, 1, 1, sprite.pivot[1], sprite.pivot[2])
+  love.graphics.draw(origin.image, origin.position.x, origin.position.y, origin.orientation, 1, 1, sprite.pivot.x, sprite.pivot.y)
   love.graphics.setColor(1, 0, 0)
   love.graphics.circle( "fill", origin.position.x, origin.position.y, 5 )
   love.graphics.setColor(1, 1, 1)
 
   -- drawing the destination
-  love.graphics.draw(destination.image, destination.position.x, destination.position.y, destination.orientation, 1, 1, sprite.pivot[1], sprite.pivot[2])
+  love.graphics.draw(destination.image, destination.position.x, destination.position.y, destination.orientation, 1, 1, sprite.pivot.x, sprite.pivot.y)
   love.graphics.setColor(1, 0, 0)
   love.graphics.circle( "fill", destination.position.x, destination.position.y, 5 )
   love.graphics.setColor(1, 1, 1)
