@@ -119,6 +119,44 @@ local function dubins_LSL()
   }
 end
 
+local function dubins_RSL()
+  local center_to_center_segment = Common.vector_sub(destination.left_center, origin.right_center)
+  local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
+
+  local straight_length =
+    math.sqrt(center_to_center_length * center_to_center_length - turning_radius * 2 * turning_radius * 2)
+
+  local angle_center_to_center___leave_point = math.acos((turning_radius * 2) / center_to_center_length)
+
+  local leave_point_direction = Common.vector_rotate(center_to_center_direction, angle_center_to_center___leave_point)
+  local leave_point_vector = Common.vector_mul(leave_point_direction, turning_radius)
+
+  local leave_point = Common.vector_add(origin.right_center, leave_point_vector)
+
+  local straight_direction, _ =
+    Common.vector_normalize(Common.vector_rotate(Common.vector_sub(origin.right_center, leave_point), math.pi / 2))
+
+  local entry_point = Common.vector_add(leave_point, Common.vector_mul(straight_direction, straight_length))
+
+  local segment_1_length, origin_angle_in, origin_angle_out =
+    get_arc_data(origin.right_center, turning_radius, origin.position, leave_point)
+  local segment_3_length, destination_angle_in, destination_angle_out =
+    get_arc_data(destination.left_center, turning_radius, entry_point, destination.position)
+
+  return {
+    leave_point = leave_point,
+    entry_point = entry_point,
+    origin_angles = {start = origin_angle_in, finish = origin_angle_out},
+    destination_angles = {start = destination_angle_in, finish = destination_angle_out},
+    segments_lengths = {
+      segment_1_length,
+      straight_length,
+      segment_3_length
+    },
+    segments_length_total = segment_1_length + straight_length + segment_3_length
+  }
+end
+
 function love.update(dt)
   update_keyboard_state()
 
@@ -253,50 +291,124 @@ function love.draw()
   draw_one(destination, {r = 0, g = 0, b = 1})
 
   local lsl_data = dubins_LSL()
+  local rsl_data = dubins_RSL()
 
-  -- return {
-  --   leave_point = leave_point,
-  --   entry_point = entry_point,
-  --   origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-  --   destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-  --   segments_lengths = {
-  --     segment_1_length,
-  --     center_to_center_length,
-  --     segment_3_length},
-  --   segments_length_total = segment_1_length + center_to_center_length + segment_3_length
-  -- }
+  local is_lsl_shorter = false
+  local is_rsl_shorter = false
 
-  love.graphics.line(lsl_data.leave_point.x, lsl_data.leave_point.y, lsl_data.entry_point.x, lsl_data.entry_point.y)
-  -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
-  -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
-  local draw_start
-  local draw_finish
-  if lsl_data.origin_angles.start > lsl_data.origin_angles.finish then
-    draw_start = lsl_data.origin_angles.start
-    draw_finish = lsl_data.origin_angles.finish + math.pi * 2
+  if lsl_data.segments_length_total < rsl_data.segments_length_total then
+    is_lsl_shorter = true
   else
-    draw_start = lsl_data.origin_angles.start
-    draw_finish = lsl_data.origin_angles.finish
+    is_rsl_shorter = true
   end
 
-  love.graphics.arc("line", "open", origin.left_center.x, origin.left_center.y, turning_radius, draw_start, draw_finish)
+  if is_lsl_shorter then
+    -- return {
+    --   leave_point = leave_point,
+    --   entry_point = entry_point,
+    --   origin_angles = {start = origin_angle_in, finish = origin_angle_out},
+    --   destination_angles = {start = destination_angle_in, finish = destination_angle_out},
+    --   segments_lengths = {
+    --     segment_1_length,
+    --     center_to_center_length,
+    --     segment_3_length},
+    --   segments_length_total = segment_1_length + center_to_center_length + segment_3_length
+    -- }
 
-  -- "end"
-  if lsl_data.destination_angles.start > lsl_data.destination_angles.finish then
-    draw_start = lsl_data.destination_angles.start
-    draw_finish = lsl_data.destination_angles.finish + math.pi * 2
-  else
-    draw_start = lsl_data.destination_angles.start
-    draw_finish = lsl_data.destination_angles.finish
+    love.graphics.line(lsl_data.leave_point.x, lsl_data.leave_point.y, lsl_data.entry_point.x, lsl_data.entry_point.y)
+    -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
+    -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
+    local draw_start
+    local draw_finish
+    if lsl_data.origin_angles.start > lsl_data.origin_angles.finish then
+      draw_start = lsl_data.origin_angles.start
+      draw_finish = lsl_data.origin_angles.finish + math.pi * 2
+    else
+      draw_start = lsl_data.origin_angles.start
+      draw_finish = lsl_data.origin_angles.finish
+    end
+
+    love.graphics.arc(
+      "line",
+      "open",
+      origin.left_center.x,
+      origin.left_center.y,
+      turning_radius,
+      draw_start,
+      draw_finish
+    )
+
+    -- "end"
+    if lsl_data.destination_angles.start > lsl_data.destination_angles.finish then
+      draw_start = lsl_data.destination_angles.start
+      draw_finish = lsl_data.destination_angles.finish + math.pi * 2
+    else
+      draw_start = lsl_data.destination_angles.start
+      draw_finish = lsl_data.destination_angles.finish
+    end
+
+    love.graphics.arc(
+      "line",
+      "open",
+      destination.left_center.x,
+      destination.left_center.y,
+      turning_radius,
+      draw_start,
+      draw_finish
+    )
+  elseif is_rsl_shorter then
+    -- return {
+    --   leave_point = leave_point,
+    --   entry_point = entry_point,
+    --   origin_angles = {start = origin_angle_in, finish = origin_angle_out},
+    --   destination_angles = {start = destination_angle_in, finish = destination_angle_out},
+    --   segments_lengths = {
+    --     segment_1_length,
+    --     center_to_center_length,
+    --     segment_3_length},
+    --   segments_length_total = segment_1_length + center_to_center_length + segment_3_length
+    -- }
+
+    love.graphics.line(rsl_data.leave_point.x, rsl_data.leave_point.y, rsl_data.entry_point.x, rsl_data.entry_point.y)
+    -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
+    -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
+    local draw_start
+    local draw_finish
+    if rsl_data.origin_angles.start > rsl_data.origin_angles.finish then
+      draw_start = rsl_data.origin_angles.start
+      draw_finish = rsl_data.origin_angles.finish
+    else
+      draw_start = rsl_data.origin_angles.start + math.pi * 2
+      draw_finish = rsl_data.origin_angles.finish
+    end
+
+    love.graphics.arc(
+      "line",
+      "open",
+      origin.right_center.x,
+      origin.right_center.y,
+      turning_radius,
+      draw_start,
+      draw_finish
+    )
+
+    -- "end"
+    if rsl_data.destination_angles.start > rsl_data.destination_angles.finish then
+      draw_start = rsl_data.destination_angles.start
+      draw_finish = rsl_data.destination_angles.finish + math.pi * 2
+    else
+      draw_start = rsl_data.destination_angles.start
+      draw_finish = rsl_data.destination_angles.finish
+    end
+
+    love.graphics.arc(
+      "line",
+      "open",
+      destination.left_center.x,
+      destination.left_center.y,
+      turning_radius,
+      draw_start,
+      draw_finish
+    )
   end
-
-  love.graphics.arc(
-    "line",
-    "open",
-    destination.left_center.x,
-    destination.left_center.y,
-    turning_radius,
-    draw_start,
-    draw_finish
-  )
 end
