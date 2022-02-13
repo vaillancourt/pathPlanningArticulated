@@ -119,6 +119,35 @@ local function dubins_LSL()
   }
 end
 
+local function dubins_RSR()
+  local center_to_center_segment = Common.vector_sub(destination.right_center, origin.right_center)
+  local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
+
+  local departure_offset =
+    Common.vector_mul(Common.vector_rotate(center_to_center_direction, math.pi / 2), turning_radius)
+
+  local leave_point = Common.vector_add(departure_offset, origin.right_center)
+  local entry_point = Common.vector_add(leave_point, center_to_center_segment)
+
+  local segment_1_length, origin_angle_in, origin_angle_out =
+    get_arc_data(origin.right_center, turning_radius, origin.position, leave_point)
+  local segment_3_length, destination_angle_in, destination_angle_out =
+    get_arc_data(destination.right_center, turning_radius, entry_point, destination.position)
+
+  return {
+    leave_point = leave_point,
+    entry_point = entry_point,
+    origin_angles = {start = origin_angle_in, finish = origin_angle_out},
+    destination_angles = {start = destination_angle_in, finish = destination_angle_out},
+    segments_lengths = {
+      segment_1_length,
+      center_to_center_length,
+      segment_3_length
+    },
+    segments_length_total = segment_1_length + center_to_center_length + segment_3_length
+  }
+end
+
 local function dubins_LSR()
   local center_to_center_segment = Common.vector_sub(destination.right_center, origin.left_center)
   local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
@@ -134,7 +163,7 @@ local function dubins_LSR()
   local leave_point = Common.vector_add(origin.left_center, leave_point_vector)
 
   local straight_direction, _ =
-    Common.vector_normalize(Common.vector_rotate(Common.vector_sub(origin.left_center, leave_point), math.pi + math.pi / 2))
+    Common.vector_normalize(Common.vector_rotate(Common.vector_sub(origin.left_center, leave_point), - math.pi / 2))
 
   local entry_point = Common.vector_add(leave_point, Common.vector_mul(straight_direction, straight_length))
 
@@ -387,6 +416,7 @@ function love.draw()
   draw_one(destination, {r = 0, g = 0, b = 1})
 
   local lsl_data = dubins_LSL()
+  local rsr_data = dubins_RSR()
   local lsr_data = dubins_LSR()
   local rsl_data = dubins_RSL()
   local rlr_data = dubins_RLR()
@@ -397,6 +427,10 @@ function love.draw()
   if lsl_data.segments_length_total < shortest_length then
     shortest_length = lsl_data.segments_length_total
     shortest_word = "lsl"
+  end
+  if rsr_data.segments_length_total < shortest_length then
+    shortest_length = rsr_data.segments_length_total
+    shortest_word = "rsr"
   end
   if lsr_data.segments_length_total < shortest_length then
     shortest_length = lsr_data.segments_length_total
@@ -411,6 +445,7 @@ function love.draw()
     shortest_word = "rlr"
   end
 
+  --shortest_word = "rsr"
 
   if shortest_word == "lsl" then
     love.graphics.line(lsl_data.leave_point.x, lsl_data.leave_point.y, lsl_data.entry_point.x, lsl_data.entry_point.y)
@@ -450,6 +485,48 @@ function love.draw()
       "open",
       destination.left_center.x,
       destination.left_center.y,
+      turning_radius,
+      draw_start,
+      draw_finish
+    )
+  elseif shortest_word == "rsr" then
+    love.graphics.line(rsr_data.leave_point.x, rsr_data.leave_point.y, rsr_data.entry_point.x, rsr_data.entry_point.y)
+    -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
+    -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
+    local draw_start
+    local draw_finish
+    if rsr_data.origin_angles.start > rsr_data.origin_angles.finish then
+      draw_start = rsr_data.origin_angles.start
+      draw_finish = rsr_data.origin_angles.finish
+    else
+      draw_start = rsr_data.origin_angles.start + math.pi * 2
+      draw_finish = rsr_data.origin_angles.finish
+    end
+
+    love.graphics.arc(
+      "line",
+      "open",
+      origin.right_center.x,
+      origin.right_center.y,
+      turning_radius,
+      draw_start,
+      draw_finish
+    )
+
+    -- "end"
+    if rsr_data.destination_angles.start > rsr_data.destination_angles.finish then
+      draw_start = rsr_data.destination_angles.start
+      draw_finish = rsr_data.destination_angles.finish
+    else
+      draw_start = rsr_data.destination_angles.start + math.pi * 2
+      draw_finish = rsr_data.destination_angles.finish
+    end
+
+    love.graphics.arc(
+      "line",
+      "open",
+      destination.right_center.x,
+      destination.right_center.y,
       turning_radius,
       draw_start,
       draw_finish
