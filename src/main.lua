@@ -272,7 +272,7 @@ local function dubins_RLR()
     get_arc_data(destination.right_center, turning_radius, entry_point, destination.position)
 
   local segment_2_length, center_angle_in, center_angle_out =
-    get_arc_data(new_circle_center, turning_radius, leave_point, entry_point)
+    get_arc_data(new_circle_center, turning_radius, leave_point, entry_point )
 
   --print("RLR segment_2_length ", segment_2_length)
 
@@ -333,7 +333,7 @@ local function dubins_LRL()
     get_arc_data(destination.left_center, turning_radius, entry_point, destination.position)
 
   local segment_2_length, center_angle_in, center_angle_out =
-    get_arc_data(new_circle_center, turning_radius, leave_point, entry_point)
+    get_arc_data(new_circle_center, turning_radius, leave_point, entry_point )
 
   --print("LRL segment_2_length ", segment_2_length)
 
@@ -484,7 +484,365 @@ local function draw_one(truck, colour)
   love.graphics.setColor(1, 1, 1)
 end
 
+local function get_dimmed_colour(colour_)
+  local dimming_constant = 0.45
+  return {colour_[1] * dimming_constant, colour_[2] * dimming_constant, colour_[3]*dimming_constant}
+end
+
+local function draw_lsl(lsl_data, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  love.graphics.setColor(colour_)
+
+  love.graphics.line(lsl_data.leave_point.x, lsl_data.leave_point.y, lsl_data.entry_point.x, lsl_data.entry_point.y)
+  -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
+  -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
+  local draw_start
+  local draw_finish
+  if lsl_data.origin_angles.start > lsl_data.origin_angles.finish then
+    draw_start = lsl_data.origin_angles.start
+    draw_finish = lsl_data.origin_angles.finish + math.pi * 2
+  else
+    draw_start = lsl_data.origin_angles.start
+    draw_finish = lsl_data.origin_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    origin.left_center.x,
+    origin.left_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  -- "end"
+  if lsl_data.destination_angles.start > lsl_data.destination_angles.finish then
+    draw_start = lsl_data.destination_angles.start
+    draw_finish = lsl_data.destination_angles.finish + math.pi * 2
+  else
+    draw_start = lsl_data.destination_angles.start
+    draw_finish = lsl_data.destination_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    destination.left_center.x,
+    destination.left_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
+local function draw_rsr(rsr_data, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  love.graphics.setColor(colour_)
+  love.graphics.line(rsr_data.leave_point.x, rsr_data.leave_point.y, rsr_data.entry_point.x, rsr_data.entry_point.y)
+  -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
+  -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
+  local draw_start
+  local draw_finish
+  if rsr_data.origin_angles.start > rsr_data.origin_angles.finish then
+    draw_start = rsr_data.origin_angles.start
+    draw_finish = rsr_data.origin_angles.finish
+  else
+    draw_start = rsr_data.origin_angles.start + math.pi * 2
+    draw_finish = rsr_data.origin_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    origin.right_center.x,
+    origin.right_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  -- "end"
+  if rsr_data.destination_angles.start > rsr_data.destination_angles.finish then
+    draw_start = rsr_data.destination_angles.start
+    draw_finish = rsr_data.destination_angles.finish
+  else
+    draw_start = rsr_data.destination_angles.start + math.pi * 2
+    draw_finish = rsr_data.destination_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    destination.right_center.x,
+    destination.right_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
+local function draw_rsl(rsl_data, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  love.graphics.setColor(colour_)
+  love.graphics.line(rsl_data.leave_point.x, rsl_data.leave_point.y, rsl_data.entry_point.x, rsl_data.entry_point.y)
+  -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
+  -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
+  local draw_start
+  local draw_finish
+  if rsl_data.origin_angles.start > rsl_data.origin_angles.finish then
+    draw_start = rsl_data.origin_angles.start
+    draw_finish = rsl_data.origin_angles.finish
+  else
+    draw_start = rsl_data.origin_angles.start + math.pi * 2
+    draw_finish = rsl_data.origin_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    origin.right_center.x,
+    origin.right_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  -- "end"
+  if rsl_data.destination_angles.start > rsl_data.destination_angles.finish then
+    draw_start = rsl_data.destination_angles.start
+    draw_finish = rsl_data.destination_angles.finish + math.pi * 2
+  else
+    draw_start = rsl_data.destination_angles.start
+    draw_finish = rsl_data.destination_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    destination.left_center.x,
+    destination.left_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
+local function draw_lsr(lsr_data, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  love.graphics.setColor(colour_)
+  love.graphics.line(lsr_data.leave_point.x, lsr_data.leave_point.y, lsr_data.entry_point.x, lsr_data.entry_point.y)
+  -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
+  -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
+  local draw_start
+  local draw_finish
+  if lsr_data.origin_angles.start > lsr_data.origin_angles.finish then
+    draw_start = lsr_data.origin_angles.start
+    draw_finish = lsr_data.origin_angles.finish + math.pi * 2
+  else
+    draw_start = lsr_data.origin_angles.start
+    draw_finish = lsr_data.origin_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    origin.left_center.x,
+    origin.left_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  -- "end"
+  if lsr_data.destination_angles.start > lsr_data.destination_angles.finish then
+    draw_start = lsr_data.destination_angles.start
+    draw_finish = lsr_data.destination_angles.finish
+  else
+    draw_start = lsr_data.destination_angles.start + math.pi * 2
+    draw_finish = lsr_data.destination_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    destination.right_center.x,
+    destination.right_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
+local function draw_lrl(lrl_data, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  love.graphics.setColor(colour_)
+  -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
+  -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
+  local draw_start
+  local draw_finish
+  if lrl_data.origin_angles.start > lrl_data.origin_angles.finish then
+    draw_start = lrl_data.origin_angles.start
+    draw_finish = lrl_data.origin_angles.finish + math.pi * 2
+  else
+    draw_start = lrl_data.origin_angles.start
+    draw_finish = lrl_data.origin_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    origin.left_center.x,
+    origin.left_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  -- "end"
+  if lrl_data.destination_angles.start > lrl_data.destination_angles.finish then
+    draw_start = lrl_data.destination_angles.start
+    draw_finish = lrl_data.destination_angles.finish + math.pi * 2
+  else
+    draw_start = lrl_data.destination_angles.start
+    draw_finish = lrl_data.destination_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    destination.left_center.x,
+    destination.left_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  -- "center"
+  -- love.graphics.setColor(0, 0, 1)
+  -- love.graphics.circle("line", lrl_data.ccc_center.center.x, lrl_data.ccc_center.center.y, turning_radius)
+  -- love.graphics.setColor(1, 1, 1)
+  -- love.graphics.circle("fill", lrl_data.ccc_center.center.x, lrl_data.ccc_center.center.y, 5)
+  -- love.graphics.setColor(1, 0, 1)
+  -- love.graphics.circle("fill", lrl_data.leave_point.x, lrl_data.leave_point.y, 5)
+  -- love.graphics.setColor(1, 1, 0)
+  -- love.graphics.circle("fill", lrl_data.entry_point.x, lrl_data.entry_point.y, 5)
+  -- love.graphics.setColor(1, 1, 1)
+
+  if lrl_data.ccc_center.angles.start > lrl_data.ccc_center.angles.finish then
+    draw_start = lrl_data.ccc_center.angles.start
+    draw_finish = lrl_data.ccc_center.angles.finish
+  else
+    draw_start = lrl_data.ccc_center.angles.start + math.pi * 2
+    draw_finish = lrl_data.ccc_center.angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    lrl_data.ccc_center.center.x,
+    lrl_data.ccc_center.center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
+local function draw_rlr(rlr_data, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  love.graphics.setColor(colour_)
+  -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
+  -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
+  local draw_start
+  local draw_finish
+  if rlr_data.origin_angles.start > rlr_data.origin_angles.finish then
+    draw_start = rlr_data.origin_angles.start
+    draw_finish = rlr_data.origin_angles.finish
+  else
+    draw_start = rlr_data.origin_angles.start + math.pi * 2
+    draw_finish = rlr_data.origin_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    origin.right_center.x,
+    origin.right_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  -- "end"
+  if rlr_data.destination_angles.start > rlr_data.destination_angles.finish then
+    draw_start = rlr_data.destination_angles.start
+    draw_finish = rlr_data.destination_angles.finish
+  else
+    draw_start = rlr_data.destination_angles.start + math.pi * 2
+    draw_finish = rlr_data.destination_angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    destination.right_center.x,
+    destination.right_center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  -- "center"
+  -- love.graphics.setColor(0, 0, 1)
+  -- love.graphics.circle("line", rlr_data.ccc_center.center.x, rlr_data.ccc_center.center.y, turning_radius)
+  -- love.graphics.setColor(1, 1, 1)
+  -- love.graphics.circle("fill", rlr_data.ccc_center.center.x, rlr_data.ccc_center.center.y, 5)
+  -- love.graphics.setColor(1, 0, 1)
+  -- love.graphics.circle("fill", rlr_data.leave_point.x, rlr_data.leave_point.y, 5)
+  -- love.graphics.setColor(1, 1, 0)
+  -- love.graphics.circle("fill", rlr_data.entry_point.x, rlr_data.entry_point.y, 5)
+  -- love.graphics.setColor(1, 1, 1)
+
+  if rlr_data.ccc_center.angles.start > rlr_data.ccc_center.angles.finish then
+    draw_start = rlr_data.ccc_center.angles.start
+    draw_finish = rlr_data.ccc_center.angles.finish + math.pi * 2
+  else
+    draw_start = rlr_data.ccc_center.angles.start
+    draw_finish = rlr_data.ccc_center.angles.finish
+  end
+
+  love.graphics.arc(
+    "line",
+    "open",
+    rlr_data.ccc_center.center.x,
+    rlr_data.ccc_center.center.y,
+    turning_radius,
+    draw_start,
+    draw_finish
+  )
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
+
 function love.draw()
+  print("draw")
   -- drawing the origin
   draw_one(origin, {r = 1, g = 1, b = 0})
 
@@ -497,6 +855,13 @@ function love.draw()
   local lsr_data = dubins_LSR()
   local lrl_data = dubins_LRL()
   local rlr_data = dubins_RLR()
+
+  local lsl_colour = {0, 1, 1}
+  local rsr_colour = {1, 0, 0}
+  local rsl_colour = {0, 1, 0}
+  local lsr_colour = {1, 0, 1}
+  local lrl_colour = {0, 0, 1}
+  local rlr_colour = {1, 1, 0}
 
   -- print(
   --   "lsl ", lsl_data.segments_length_total, " ",
@@ -534,351 +899,37 @@ function love.draw()
     shortest_word = "lrl"
   end
 
-  --shortest_word = "lrl"
+  if shortest_word ~= "lsl" then
+    draw_lsl(lsl_data, get_dimmed_colour(lsl_colour))
+  end
+  if shortest_word ~= "rsr" then
+    draw_rsr(rsr_data, get_dimmed_colour(rsr_colour))
+  end
+  if shortest_word ~= "lsr" then
+    draw_lsr(lsr_data, get_dimmed_colour(lsr_colour))
+  end
+  if shortest_word ~= "rsl" then
+    draw_rsl(rsl_data, get_dimmed_colour(rsl_colour))
+  end
+  if shortest_word ~= "rlr" then
+    draw_rlr(rlr_data, get_dimmed_colour(rlr_colour))
+  end
+  if shortest_word ~= "lrl" then
+    draw_lrl(lrl_data, get_dimmed_colour(lrl_colour))
+  end
 
   if shortest_word == "lsl" then
-    love.graphics.line(lsl_data.leave_point.x, lsl_data.leave_point.y, lsl_data.entry_point.x, lsl_data.entry_point.y)
-    -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
-    -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
-    local draw_start
-    local draw_finish
-    if lsl_data.origin_angles.start > lsl_data.origin_angles.finish then
-      draw_start = lsl_data.origin_angles.start
-      draw_finish = lsl_data.origin_angles.finish + math.pi * 2
-    else
-      draw_start = lsl_data.origin_angles.start
-      draw_finish = lsl_data.origin_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      origin.left_center.x,
-      origin.left_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
-
-    -- "end"
-    if lsl_data.destination_angles.start > lsl_data.destination_angles.finish then
-      draw_start = lsl_data.destination_angles.start
-      draw_finish = lsl_data.destination_angles.finish + math.pi * 2
-    else
-      draw_start = lsl_data.destination_angles.start
-      draw_finish = lsl_data.destination_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      destination.left_center.x,
-      destination.left_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
+    draw_lsl(lsl_data, lsl_colour)
   elseif shortest_word == "rsr" then
-    love.graphics.line(rsr_data.leave_point.x, rsr_data.leave_point.y, rsr_data.entry_point.x, rsr_data.entry_point.y)
-    -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
-    -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
-    local draw_start
-    local draw_finish
-    if rsr_data.origin_angles.start > rsr_data.origin_angles.finish then
-      draw_start = rsr_data.origin_angles.start
-      draw_finish = rsr_data.origin_angles.finish
-    else
-      draw_start = rsr_data.origin_angles.start + math.pi * 2
-      draw_finish = rsr_data.origin_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      origin.right_center.x,
-      origin.right_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
-
-    -- "end"
-    if rsr_data.destination_angles.start > rsr_data.destination_angles.finish then
-      draw_start = rsr_data.destination_angles.start
-      draw_finish = rsr_data.destination_angles.finish
-    else
-      draw_start = rsr_data.destination_angles.start + math.pi * 2
-      draw_finish = rsr_data.destination_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      destination.right_center.x,
-      destination.right_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
+    draw_rsr(rsr_data, rsr_colour)
   elseif shortest_word == "lsr" then
-    love.graphics.line(lsr_data.leave_point.x, lsr_data.leave_point.y, lsr_data.entry_point.x, lsr_data.entry_point.y)
-    -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
-    -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
-    local draw_start
-    local draw_finish
-    if lsr_data.origin_angles.start > lsr_data.origin_angles.finish then
-      draw_start = lsr_data.origin_angles.start
-      draw_finish = lsr_data.origin_angles.finish + math.pi * 2
-    else
-      draw_start = lsr_data.origin_angles.start
-      draw_finish = lsr_data.origin_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      origin.left_center.x,
-      origin.left_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
-
-    -- "end"
-    if lsr_data.destination_angles.start > lsr_data.destination_angles.finish then
-      draw_start = lsr_data.destination_angles.start
-      draw_finish = lsr_data.destination_angles.finish
-    else
-      draw_start = lsr_data.destination_angles.start + math.pi * 2
-      draw_finish = lsr_data.destination_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      destination.right_center.x,
-      destination.right_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
+    draw_lsr(lsr_data, lsr_colour)
   elseif shortest_word == "rsl" then
-    -- return {
-    --   leave_point = leave_point,
-    --   entry_point = entry_point,
-    --   origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    --   destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-    --   segments_lengths = {
-    --     segment_1_length,
-    --     center_to_center_length,
-    --     segment_3_length},
-    --   segments_length_total = segment_1_length + center_to_center_length + segment_3_length
-    -- }
-
-    love.graphics.line(rsl_data.leave_point.x, rsl_data.leave_point.y, rsl_data.entry_point.x, rsl_data.entry_point.y)
-    -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
-    -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
-    local draw_start
-    local draw_finish
-    if rsl_data.origin_angles.start > rsl_data.origin_angles.finish then
-      draw_start = rsl_data.origin_angles.start
-      draw_finish = rsl_data.origin_angles.finish
-    else
-      draw_start = rsl_data.origin_angles.start + math.pi * 2
-      draw_finish = rsl_data.origin_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      origin.right_center.x,
-      origin.right_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
-
-    -- "end"
-    if rsl_data.destination_angles.start > rsl_data.destination_angles.finish then
-      draw_start = rsl_data.destination_angles.start
-      draw_finish = rsl_data.destination_angles.finish + math.pi * 2
-    else
-      draw_start = rsl_data.destination_angles.start
-      draw_finish = rsl_data.destination_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      destination.left_center.x,
-      destination.left_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
+    draw_rsl(rsl_data, rsl_colour)
   elseif shortest_word == "rlr" then
-    -- return {
-    --   leave_point = leave_point,
-    --   entry_point = entry_point,
-    --   origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    --   destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-    --   segments_lengths = {
-    --     segment_1_length,
-    --     center_to_center_length,
-    --     segment_3_length},
-    --   segments_length_total = segment_1_length + center_to_center_length + segment_3_length
-    -- }
-
-    -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
-    -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
-    local draw_start
-    local draw_finish
-    if rlr_data.origin_angles.start > rlr_data.origin_angles.finish then
-      draw_start = rlr_data.origin_angles.start
-      draw_finish = rlr_data.origin_angles.finish
-    else
-      draw_start = rlr_data.origin_angles.start + math.pi * 2
-      draw_finish = rlr_data.origin_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      origin.right_center.x,
-      origin.right_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
-
-    -- "end"
-    if rlr_data.destination_angles.start > rlr_data.destination_angles.finish then
-      draw_start = rlr_data.destination_angles.start
-      draw_finish = rlr_data.destination_angles.finish
-    else
-      draw_start = rlr_data.destination_angles.start + math.pi * 2
-      draw_finish = rlr_data.destination_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      destination.right_center.x,
-      destination.right_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
-
-    -- "center"
-    love.graphics.setColor(0, 0, 1)
-    love.graphics.circle("line", rlr_data.ccc_center.center.x, rlr_data.ccc_center.center.y, turning_radius)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.circle("fill", rlr_data.ccc_center.center.x, rlr_data.ccc_center.center.y, 5)
-    love.graphics.setColor(1, 0, 1)
-    love.graphics.circle("fill", rlr_data.leave_point.x, rlr_data.leave_point.y, 5)
-    love.graphics.setColor(1, 1, 0)
-    love.graphics.circle("fill", rlr_data.entry_point.x, rlr_data.entry_point.y, 5)
-    love.graphics.setColor(1, 1, 1)
-
-    if rlr_data.ccc_center.angles.start > rlr_data.ccc_center.angles.finish then
-      draw_start = rlr_data.ccc_center.angles.start
-      draw_finish = rlr_data.ccc_center.angles.finish + math.pi * 2
-    else
-      draw_start = rlr_data.ccc_center.angles.start
-      draw_finish = rlr_data.ccc_center.angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      rlr_data.ccc_center.center.x,
-      rlr_data.ccc_center.center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
+    draw_rlr(rlr_data, rlr_colour)
   elseif shortest_word == "lrl" then
-    -- return {
-    --   leave_point = leave_point,
-    --   entry_point = entry_point,
-    --   origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    --   destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-    --   segments_lengths = {
-    --     segment_1_length,
-    --     center_to_center_length,
-    --     segment_3_length},
-    --   segments_length_total = segment_1_length + center_to_center_length + segment_3_length
-    -- }
-
-    -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
-    -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
-    local draw_start
-    local draw_finish
-    if lrl_data.origin_angles.start > lrl_data.origin_angles.finish then
-      draw_start = lrl_data.origin_angles.start
-      draw_finish = lrl_data.origin_angles.finish + math.pi * 2
-    else
-      draw_start = lrl_data.origin_angles.start
-      draw_finish = lrl_data.origin_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      origin.left_center.x,
-      origin.left_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
-
-    -- "end"
-    if lrl_data.destination_angles.start > lrl_data.destination_angles.finish then
-      draw_start = lrl_data.destination_angles.start
-      draw_finish = lrl_data.destination_angles.finish + math.pi * 2
-    else
-      draw_start = lrl_data.destination_angles.start
-      draw_finish = lrl_data.destination_angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      destination.left_center.x,
-      destination.left_center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
-
-    -- "center"
-    love.graphics.setColor(0, 0, 1)
-    love.graphics.circle("line", lrl_data.ccc_center.center.x, lrl_data.ccc_center.center.y, turning_radius)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.circle("fill", lrl_data.ccc_center.center.x, lrl_data.ccc_center.center.y, 5)
-    love.graphics.setColor(1, 0, 1)
-    love.graphics.circle("fill", lrl_data.leave_point.x, lrl_data.leave_point.y, 5)
-    love.graphics.setColor(1, 1, 0)
-    love.graphics.circle("fill", lrl_data.entry_point.x, lrl_data.entry_point.y, 5)
-    love.graphics.setColor(1, 1, 1)
-
-    if lrl_data.ccc_center.angles.start > lrl_data.ccc_center.angles.finish then
-      draw_start = lrl_data.ccc_center.angles.start
-      draw_finish = lrl_data.ccc_center.angles.finish
-    else
-      draw_start = lrl_data.ccc_center.angles.start + math.pi * 2
-      draw_finish = lrl_data.ccc_center.angles.finish
-    end
-
-    love.graphics.arc(
-      "line",
-      "open",
-      lrl_data.ccc_center.center.x,
-      lrl_data.ccc_center.center.y,
-      turning_radius,
-      draw_start,
-      draw_finish
-    )
+    draw_lrl(lrl_data, lrl_colour)
   end
+
 end
