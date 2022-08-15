@@ -142,9 +142,9 @@ local function dubins_RSR()
   local entry_point = Common.vector_add(leave_point, center_to_center_segment)
 
   local segment_1_length, origin_angle_in, origin_angle_out =
-    get_arc_data(origin.right_center, turning_radius, origin.position, leave_point)
+    get_arc_data(origin.right_center, turning_radius, leave_point, origin.position)
   local segment_3_length, destination_angle_in, destination_angle_out =
-    get_arc_data(destination.right_center, turning_radius, entry_point, destination.position)
+    get_arc_data(destination.right_center, turning_radius, destination.position, entry_point)
 
   return {
     leave_point = leave_point,
@@ -549,11 +549,11 @@ local function draw_rsr(rsr_data, colour_)
   local draw_start
   local draw_finish
   if rsr_data.origin_angles.start > rsr_data.origin_angles.finish then
-    draw_start = rsr_data.origin_angles.start
-    draw_finish = rsr_data.origin_angles.finish
+    draw_start = rsr_data.origin_angles.finish + math.pi * 2
+    draw_finish = rsr_data.origin_angles.start
   else
-    draw_start = rsr_data.origin_angles.start + math.pi * 2
-    draw_finish = rsr_data.origin_angles.finish
+    draw_start = rsr_data.origin_angles.finish
+    draw_finish = rsr_data.origin_angles.start
   end
 
   love.graphics.arc(
@@ -569,9 +569,9 @@ local function draw_rsr(rsr_data, colour_)
   -- "end"
   if rsr_data.destination_angles.start > rsr_data.destination_angles.finish then
     draw_start = rsr_data.destination_angles.start
-    draw_finish = rsr_data.destination_angles.finish
+    draw_finish = rsr_data.destination_angles.finish + math.pi * 2
   else
-    draw_start = rsr_data.destination_angles.start + math.pi * 2
+    draw_start = rsr_data.destination_angles.start
     draw_finish = rsr_data.destination_angles.finish
   end
 
@@ -842,12 +842,19 @@ end
 
 
 function love.draw()
-  print("draw")
+  --print("draw")
   -- drawing the origin
   draw_one(origin, {r = 1, g = 1, b = 0})
 
   -- drawing the destination
   draw_one(destination, {r = 0, g = 0, b = 1})
+
+  local lsl_evaluate = true
+  local rsr_evaluate = true
+  local rsl_evaluate = true
+  local lsr_evaluate = true
+  local lrl_evaluate = true
+  local rlr_evaluate = true
 
   local lsl_data = dubins_LSL()
   local rsr_data = dubins_RSR()
@@ -874,61 +881,63 @@ function love.draw()
   local shortest_length = math.huge
   local shortest_word = ""
 
-  if lsl_data.segments_length_total < shortest_length then
+  if lsl_evaluate and lsl_data.segments_length_total < shortest_length then
     shortest_length = lsl_data.segments_length_total
     shortest_word = "lsl"
   end
-  if rsr_data.segments_length_total < shortest_length then
+  if rsr_evaluate and rsr_data.segments_length_total < shortest_length then
     shortest_length = rsr_data.segments_length_total
     shortest_word = "rsr"
   end
-  if lsr_data.segments_length_total < shortest_length then
+  if lsr_evaluate and lsr_data.segments_length_total < shortest_length then
     shortest_length = lsr_data.segments_length_total
     shortest_word = "lsr"
   end
-  if rsl_data.segments_length_total < shortest_length then
+  if rsl_evaluate and rsl_data.segments_length_total < shortest_length then
     shortest_length = rsl_data.segments_length_total
-    shortest_word = "rsr"
+    shortest_word = "rsl"
   end
-  if rlr_data.segments_length_total < shortest_length then
+  if rlr_evaluate and rlr_data.segments_length_total < shortest_length then
     shortest_length = rlr_data.segments_length_total
     shortest_word = "rlr"
   end
-  if lrl_data.segments_length_total < shortest_length then
+  if lrl_evaluate and lrl_data.segments_length_total < shortest_length then
     shortest_length = lrl_data.segments_length_total
     shortest_word = "lrl"
   end
 
-  if shortest_word ~= "lsl" then
+  --print("shortest_word", shortest_word)
+
+  if lsl_evaluate and shortest_word ~= "lsl" then
     draw_lsl(lsl_data, get_dimmed_colour(lsl_colour))
   end
-  if shortest_word ~= "rsr" then
+  if rsr_evaluate and shortest_word ~= "rsr" then
     draw_rsr(rsr_data, get_dimmed_colour(rsr_colour))
   end
-  if shortest_word ~= "lsr" then
+  if lsr_evaluate and shortest_word ~= "lsr" then
     draw_lsr(lsr_data, get_dimmed_colour(lsr_colour))
   end
-  if shortest_word ~= "rsl" then
+  if rsl_evaluate and shortest_word ~= "rsl" then
     draw_rsl(rsl_data, get_dimmed_colour(rsl_colour))
   end
-  if shortest_word ~= "rlr" then
+  if rlr_evaluate and shortest_word ~= "rlr" then
     draw_rlr(rlr_data, get_dimmed_colour(rlr_colour))
   end
-  if shortest_word ~= "lrl" then
+  if lrl_evaluate and shortest_word ~= "lrl" then
     draw_lrl(lrl_data, get_dimmed_colour(lrl_colour))
   end
 
-  if shortest_word == "lsl" then
+  if lsl_evaluate and shortest_word == "lsl" then
     draw_lsl(lsl_data, lsl_colour)
-  elseif shortest_word == "rsr" then
+  elseif rsr_evaluate and shortest_word == "rsr" then
     draw_rsr(rsr_data, rsr_colour)
-  elseif shortest_word == "lsr" then
+  elseif lsr_evaluate and shortest_word == "lsr" then
     draw_lsr(lsr_data, lsr_colour)
-  elseif shortest_word == "rsl" then
+  elseif rsl_evaluate and shortest_word == "rsl" then
     draw_rsl(rsl_data, rsl_colour)
-  elseif shortest_word == "rlr" then
+  elseif rlr_evaluate and shortest_word == "rlr" then
     draw_rlr(rlr_data, rlr_colour)
-  elseif shortest_word == "lrl" then
+  elseif lrl_evaluate and shortest_word == "lrl" then
     draw_lrl(lrl_data, lrl_colour)
   end
 
