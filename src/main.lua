@@ -1,4 +1,6 @@
 local Common = require "Common"
+local Vehicle = require "Vehicle"
+local Dubins = require "Dubins"
 
 io.stdout:setvbuf("no") -- This makes is so that print() statements print right away.
 
@@ -21,38 +23,15 @@ local origin = {}
 local destination = {}
 
 local window_width, window_height = 768, 768
-local turning_radius = 95
-
-local function update_truck(truck)
-  truck.left = Common.vector_rotate({x = 1, y = 0}, Common.over_2pi(math.pi / 2 + truck.orientation))
-  truck.right = Common.vector_rotate({x = 1, y = 0}, Common.over_2pi(-(math.pi / 2) + truck.orientation))
-  truck.head = Common.vector_rotate({x = 1, y = 0}, truck.orientation)
-
-  truck.left_center = Common.vector_add(Common.vector_mul(truck.left, turning_radius), truck.position)
-  truck.right_center = Common.vector_add(Common.vector_mul(truck.right, turning_radius), truck.position)
-end
-
-local function init_truck(truck)
-  truck.orientation = 0
-
-  update_truck(truck)
-end
 
 function love.load(args)
   love.window.setMode(window_width, window_height, {resizable = false})
 
-  origin = {
-    position = {x = window_width / 4, y = window_height / 2},
-    image = love.graphics.newImage("assets/truck_origin.png")
-  }
+  origin = Vehicle:new(nil, {x = window_width / 4, y = window_height / 2}, 0)
+  origin.image = love.graphics.newImage("assets/truck_origin.png")
 
-  destination = {
-    position = {x = window_width * 3 / 4, y = window_height / 2},
-    image = love.graphics.newImage("assets/truck_destination.png")
-  }
-
-  init_truck(origin)
-  init_truck(destination)
+  destination = Vehicle:new(nil, {x = window_width * 3 / 4, y = window_height / 2}, 0)
+  destination.image = love.graphics.newImage("assets/truck_destination.png")
 end
 
 local function update_keyboard_state()
@@ -69,293 +48,6 @@ local function update_keyboard_state()
   KeyboardState.move_right = love.keyboard.isDown("d")
   KeyboardState.rotate_cw = love.keyboard.isDown("down")
   KeyboardState.rotate_ccw = love.keyboard.isDown("up")
-end
-
---- Computes the arc between a starting point and a finishing point on a circle.
--- The function expects:
--- - that the start and finish are in counter-clock-wise order.
--- - that the angles are all in the range of [0, 2pi[, with 0 being on x+
---
--- If the points presented don't appear to be on the circle, math.huge is returned for all the values.
---
--- @param center table ({x:, y:}) of the coordinates of the center of the circle.
--- @param radius number value of the radius of the circle
--- @param start table ({x:, y:}) of a point on the circle where the angle "starts"; should be on the circle edge.
--- @param finish table ({x:, y:}) of a point on the circle where the angle "finishes"; should be on the circle edge.
--- 
--- @return angle between the two points, or math.huge if both points are not on the circle edge.
--- @return the angle where start is, or math.huge if both points are not on the circle edge.
--- @return the angle where finish is, or math.hug if both points are not on the circle edge.
-local function get_arc_data(center, radius, start, finish)
-  local normalized_start, start_length = Common.vector_normalize(Common.vector_sub(start, center))
-  local normalized_finish, finish_length = Common.vector_normalize(Common.vector_sub(finish, center))
-
-  if not Common.equivalent(start_length, radius) or not Common.equivalent(finish_length, radius) then
-    return math.huge, math.huge, math.huge
-  end
-
-  local angle_start = math.atan2(normalized_start.y, normalized_start.x)
-  local angle_finish = math.atan2(normalized_finish.y, normalized_finish.x)
-
-  return Common.over_2pi(angle_finish - angle_start) * radius, Common.over_2pi(angle_start), Common.over_2pi(
-    angle_finish
-  )
-end
-
-local function dubins_LSL()
-  local center_to_center_segment = Common.vector_sub(destination.left_center, origin.left_center)
-  local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
-
-  local departure_offset =
-    Common.vector_mul(Common.vector_rotate(center_to_center_direction, -math.pi / 2), turning_radius)
-
-  local leave_point = Common.vector_add(departure_offset, origin.left_center)
-  local entry_point = Common.vector_add(leave_point, center_to_center_segment)
-
-  local segment_1_length, origin_angle_in, origin_angle_out =
-    get_arc_data(origin.left_center, turning_radius, origin.position, leave_point)
-  local segment_3_length, destination_angle_in, destination_angle_out =
-    get_arc_data(destination.left_center, turning_radius, entry_point, destination.position)
-
-  return {
-    leave_point = leave_point,
-    entry_point = entry_point,
-    origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-    segments_lengths = {
-      segment_1_length,
-      center_to_center_length,
-      segment_3_length
-    },
-    segments_length_total = segment_1_length + center_to_center_length + segment_3_length
-  }
-end
-
-local function dubins_RSR()
-  local center_to_center_segment = Common.vector_sub(destination.right_center, origin.right_center)
-  local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
-
-  local departure_offset =
-    Common.vector_mul(Common.vector_rotate(center_to_center_direction, math.pi / 2), turning_radius)
-
-  local leave_point = Common.vector_add(departure_offset, origin.right_center)
-  local entry_point = Common.vector_add(leave_point, center_to_center_segment)
-
-  local segment_1_length, origin_angle_in, origin_angle_out =
-    get_arc_data(origin.right_center, turning_radius, leave_point, origin.position)
-  local segment_3_length, destination_angle_in, destination_angle_out =
-    get_arc_data(destination.right_center, turning_radius, destination.position, entry_point)
-
-  return {
-    leave_point = leave_point,
-    entry_point = entry_point,
-    origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-    segments_lengths = {
-      segment_1_length,
-      center_to_center_length,
-      segment_3_length
-    },
-    segments_length_total = segment_1_length + center_to_center_length + segment_3_length
-  }
-end
-
-local function dubins_LSR()
-  local center_to_center_segment = Common.vector_sub(destination.right_center, origin.left_center)
-  local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
-
-  local straight_length =
-    math.sqrt(center_to_center_length * center_to_center_length - turning_radius * 2 * turning_radius * 2)
-
-  local angle_center_to_center___leave_point = -math.acos((turning_radius * 2) / center_to_center_length)
-
-  local leave_point_direction = Common.vector_rotate(center_to_center_direction, angle_center_to_center___leave_point)
-  local leave_point_vector = Common.vector_mul(leave_point_direction, turning_radius)
-
-  local leave_point = Common.vector_add(origin.left_center, leave_point_vector)
-
-  local straight_direction, _ =
-    Common.vector_normalize(Common.vector_rotate(Common.vector_sub(origin.left_center, leave_point), -math.pi / 2))
-
-  local entry_point = Common.vector_add(leave_point, Common.vector_mul(straight_direction, straight_length))
-
-  local segment_1_length, origin_angle_in, origin_angle_out =
-    get_arc_data(origin.left_center, turning_radius, origin.position, leave_point)
-  local segment_3_length, destination_angle_in, destination_angle_out =
-    get_arc_data(destination.right_center, turning_radius, entry_point, destination.position)
-
-  return {
-    leave_point = leave_point,
-    entry_point = entry_point,
-    origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-    segments_lengths = {
-      segment_1_length,
-      straight_length,
-      segment_3_length
-    },
-    segments_length_total = segment_1_length + straight_length + segment_3_length
-  }
-end
-
-local function dubins_RSL()
-  local center_to_center_segment = Common.vector_sub(destination.left_center, origin.right_center)
-  local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
-
-  local straight_length =
-    math.sqrt(center_to_center_length * center_to_center_length - turning_radius * 2 * turning_radius * 2)
-
-  local angle_center_to_center___leave_point = math.acos((turning_radius * 2) / center_to_center_length)
-
-  local leave_point_direction = Common.vector_rotate(center_to_center_direction, angle_center_to_center___leave_point)
-  local leave_point_vector = Common.vector_mul(leave_point_direction, turning_radius)
-
-  local leave_point = Common.vector_add(origin.right_center, leave_point_vector)
-
-  local straight_direction, _ =
-    Common.vector_normalize(Common.vector_rotate(Common.vector_sub(origin.right_center, leave_point), math.pi / 2))
-
-  local entry_point = Common.vector_add(leave_point, Common.vector_mul(straight_direction, straight_length))
-
-  local segment_1_length, origin_angle_in, origin_angle_out =
-    get_arc_data(origin.right_center, turning_radius, origin.position, leave_point)
-  local segment_3_length, destination_angle_in, destination_angle_out =
-    get_arc_data(destination.left_center, turning_radius, entry_point, destination.position)
-
-  return {
-    leave_point = leave_point,
-    entry_point = entry_point,
-    origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-    segments_lengths = {
-      segment_1_length,
-      straight_length,
-      segment_3_length
-    },
-    segments_length_total = segment_1_length + straight_length + segment_3_length
-  }
-end
-
-local function dubins_RLR()
-  local center_to_center_segment = Common.vector_sub(destination.right_center, origin.right_center)
-  local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
-  local angle_destination_center_new_circle_center
-  if (2 * turning_radius) > (center_to_center_length / 2) then
-    angle_destination_center_new_circle_center = math.acos((center_to_center_length / 2) / (2 * turning_radius))
-  else
-    angle_destination_center_new_circle_center = math.acos((2 * turning_radius) / (center_to_center_length / 2))
-  end
-
-  local new_circle_center =
-    Common.vector_add(
-    origin.right_center,
-    Common.vector_rotate(
-      Common.vector_mul(center_to_center_direction, 2 * turning_radius),
-      -angle_destination_center_new_circle_center
-    )
-  )
-
-  local leave_point =
-    Common.vector_add(
-    origin.right_center,
-    Common.vector_mul(Common.vector_sub(new_circle_center, origin.right_center), 0.5)
-  )
-  local entry_point =
-    Common.vector_add(
-    new_circle_center,
-    Common.vector_mul(Common.vector_sub(destination.right_center, new_circle_center), 0.5)
-  )
-
-  local segment_1_length, origin_angle_in, origin_angle_out =
-    get_arc_data(origin.right_center, turning_radius, origin.position, leave_point)
-  local segment_3_length, destination_angle_in, destination_angle_out =
-    get_arc_data(destination.right_center, turning_radius, entry_point, destination.position)
-
-  local segment_2_length, center_angle_in, center_angle_out =
-    get_arc_data(new_circle_center, turning_radius, leave_point, entry_point )
-
-  --print("RLR segment_2_length ", segment_2_length)
-
-  return {
-    leave_point = leave_point,
-    entry_point = entry_point,
-    origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-    segments_lengths = {
-      segment_1_length,
-      segment_2_length,
-      segment_3_length
-    },
-    segments_length_total = segment_1_length + segment_2_length + segment_3_length,
-    ccc_center = {
-      center = new_circle_center,
-      angles = {
-        start = center_angle_in,
-        finish = center_angle_out
-      }
-    }
-  }
-end
-
-local function dubins_LRL()
-  local center_to_center_segment = Common.vector_sub(destination.left_center, origin.left_center)
-  local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
-  local angle_destination_center_new_circle_center
-  if (2 * turning_radius) > (center_to_center_length / 2) then
-    angle_destination_center_new_circle_center = -math.acos((center_to_center_length / 2) / (2 * turning_radius))
-  else
-    angle_destination_center_new_circle_center = -math.acos((2 * turning_radius) / (center_to_center_length / 2))
-  end
-
-  local new_circle_center =
-    Common.vector_add(
-    origin.left_center,
-    Common.vector_rotate(
-      Common.vector_mul(center_to_center_direction, 2 * turning_radius),
-      -angle_destination_center_new_circle_center
-    )
-  )
-
-  local leave_point =
-    Common.vector_add(
-    origin.left_center,
-    Common.vector_mul(Common.vector_sub(new_circle_center, origin.left_center), 0.5)
-  )
-  local entry_point =
-    Common.vector_add(
-    new_circle_center,
-    Common.vector_mul(Common.vector_sub(destination.left_center, new_circle_center), 0.5)
-  )
-
-  local segment_1_length, origin_angle_in, origin_angle_out =
-    get_arc_data(origin.left_center, turning_radius, origin.position, leave_point)
-  local segment_3_length, destination_angle_in, destination_angle_out =
-    get_arc_data(destination.left_center, turning_radius, entry_point, destination.position)
-
-  local segment_2_length, center_angle_in, center_angle_out =
-    get_arc_data(new_circle_center, turning_radius, leave_point, entry_point )
-
-  --print("LRL segment_2_length ", segment_2_length)
-
-  return {
-    leave_point = leave_point,
-    entry_point = entry_point,
-    origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    destination_angles = {start = destination_angle_in, finish = destination_angle_out},
-    segments_lengths = {
-      segment_1_length,
-      segment_2_length,
-      segment_3_length
-    },
-    segments_length_total = segment_1_length + segment_2_length + segment_3_length,
-    ccc_center = {
-      center = new_circle_center,
-      angles = {
-        start = center_angle_in,
-        finish = center_angle_out
-      }
-    }
-  }
 end
 
 function love.update(dt)
@@ -389,8 +81,8 @@ function love.update(dt)
 
   updateable.orientation = Common.over_2pi(updateable.orientation)
 
-  update_truck(origin)
-  update_truck(destination)
+  origin:update()
+  destination:update()
 end
 
 function love.keyreleased(key)
@@ -470,10 +162,10 @@ local function draw_one(truck, colour)
   love.graphics.line(truck.position.x, truck.position.y, truck.right_center.x, truck.right_center.y)
 
   love.graphics.setColor(0, 0.25, 0)
-  love.graphics.circle("line", truck.left_center.x, truck.left_center.y, turning_radius)
+  love.graphics.circle("line", truck.left_center.x, truck.left_center.y, truck.turning_radius)
 
   love.graphics.setColor(0.25, 0, 0)
-  love.graphics.circle("line", truck.right_center.x, truck.right_center.y, turning_radius)
+  love.graphics.circle("line", truck.right_center.x, truck.right_center.y, truck.turning_radius)
 
   love.graphics.setColor(0.25, 0.25, 0.25)
   local start = Common.vector_add(Common.vector_mul(truck.head, 200), truck.position)
@@ -486,7 +178,7 @@ end
 
 local function get_dimmed_colour(colour_)
   local dimming_constant = 0.45
-  return {colour_[1] * dimming_constant, colour_[2] * dimming_constant, colour_[3]*dimming_constant}
+  return {colour_[1] * dimming_constant, colour_[2] * dimming_constant, colour_[3] * dimming_constant}
 end
 
 local function draw_lsl(lsl_data, colour_)
@@ -512,7 +204,7 @@ local function draw_lsl(lsl_data, colour_)
     "open",
     origin.left_center.x,
     origin.left_center.y,
-    turning_radius,
+    origin.turning_radius,
     draw_start,
     draw_finish
   )
@@ -531,7 +223,7 @@ local function draw_lsl(lsl_data, colour_)
     "open",
     destination.left_center.x,
     destination.left_center.y,
-    turning_radius,
+    destination.turning_radius,
     draw_start,
     draw_finish
   )
@@ -561,7 +253,7 @@ local function draw_rsr(rsr_data, colour_)
     "open",
     origin.right_center.x,
     origin.right_center.y,
-    turning_radius,
+    origin.turning_radius,
     draw_start,
     draw_finish
   )
@@ -580,7 +272,7 @@ local function draw_rsr(rsr_data, colour_)
     "open",
     destination.right_center.x,
     destination.right_center.y,
-    turning_radius,
+    destination.turning_radius,
     draw_start,
     draw_finish
   )
@@ -610,7 +302,7 @@ local function draw_rsl(rsl_data, colour_)
     "open",
     origin.right_center.x,
     origin.right_center.y,
-    turning_radius,
+    origin.turning_radius,
     draw_start,
     draw_finish
   )
@@ -629,7 +321,7 @@ local function draw_rsl(rsl_data, colour_)
     "open",
     destination.left_center.x,
     destination.left_center.y,
-    turning_radius,
+    destination.turning_radius,
     draw_start,
     draw_finish
   )
@@ -659,7 +351,7 @@ local function draw_lsr(lsr_data, colour_)
     "open",
     origin.left_center.x,
     origin.left_center.y,
-    turning_radius,
+    origin.turning_radius,
     draw_start,
     draw_finish
   )
@@ -678,7 +370,7 @@ local function draw_lsr(lsr_data, colour_)
     "open",
     destination.right_center.x,
     destination.right_center.y,
-    turning_radius,
+    destination.turning_radius,
     draw_start,
     draw_finish
   )
@@ -707,7 +399,7 @@ local function draw_lrl(lrl_data, colour_)
     "open",
     origin.left_center.x,
     origin.left_center.y,
-    turning_radius,
+    origin.turning_radius,
     draw_start,
     draw_finish
   )
@@ -726,7 +418,7 @@ local function draw_lrl(lrl_data, colour_)
     "open",
     destination.left_center.x,
     destination.left_center.y,
-    turning_radius,
+    destination.turning_radius,
     draw_start,
     draw_finish
   )
@@ -755,7 +447,7 @@ local function draw_lrl(lrl_data, colour_)
     "open",
     lrl_data.ccc_center.center.x,
     lrl_data.ccc_center.center.y,
-    turning_radius,
+    origin.turning_radius,
     draw_start,
     draw_finish
   )
@@ -784,7 +476,7 @@ local function draw_rlr(rlr_data, colour_)
     "open",
     origin.right_center.x,
     origin.right_center.y,
-    turning_radius,
+    origin.turning_radius,
     draw_start,
     draw_finish
   )
@@ -803,7 +495,7 @@ local function draw_rlr(rlr_data, colour_)
     "open",
     destination.right_center.x,
     destination.right_center.y,
-    turning_radius,
+    destination.turning_radius,
     draw_start,
     draw_finish
   )
@@ -832,7 +524,7 @@ local function draw_rlr(rlr_data, colour_)
     "open",
     rlr_data.ccc_center.center.x,
     rlr_data.ccc_center.center.y,
-    turning_radius,
+    origin.turning_radius,
     draw_start,
     draw_finish
   )
@@ -840,28 +532,24 @@ local function draw_rlr(rlr_data, colour_)
   love.graphics.setColor(sr, sg, sb, sa)
 end
 
-
 function love.draw()
-  --print("draw")
-  -- drawing the origin
-  draw_one(origin, {r = 1, g = 1, b = 0})
 
-  -- drawing the destination
+  draw_one(origin, {r = 1, g = 1, b = 0})
   draw_one(destination, {r = 0, g = 0, b = 1})
 
   local lsl_evaluate = true
   local rsr_evaluate = true
   local rsl_evaluate = true
   local lsr_evaluate = true
-  local lrl_evaluate = true
-  local rlr_evaluate = true
+  local lrl_evaluate = false
+  local rlr_evaluate = false
 
-  local lsl_data = dubins_LSL()
-  local rsr_data = dubins_RSR()
-  local rsl_data = dubins_RSL()
-  local lsr_data = dubins_LSR()
-  local lrl_data = dubins_LRL()
-  local rlr_data = dubins_RLR()
+  local lsl_data = Dubins.LSL(origin, destination)
+  local rsr_data = Dubins.RSR(origin, destination)
+  local rsl_data = Dubins.RSL(origin, destination)
+  local lsr_data = Dubins.LSR(origin, destination)
+  local lrl_data = Dubins.LRL(origin, destination)
+  local rlr_data = Dubins.RLR(origin, destination)
 
   local lsl_colour = {0, 1, 1}
   local rsr_colour = {1, 0, 0}
@@ -902,7 +590,7 @@ function love.draw()
     shortest_word = "rlr"
   end
   if lrl_evaluate and lrl_data.segments_length_total < shortest_length then
-    shortest_length = lrl_data.segments_length_total
+    --shortest_length = lrl_data.segments_length_total
     shortest_word = "lrl"
   end
 
@@ -940,5 +628,4 @@ function love.draw()
   elseif lrl_evaluate and shortest_word == "lrl" then
     draw_lrl(lrl_data, lrl_colour)
   end
-
 end
