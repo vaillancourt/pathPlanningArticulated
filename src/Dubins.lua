@@ -5,26 +5,140 @@ local Common = require "Common"
 
 local Dubins = {}
 
-function Dubins.LSL(origin, destination)
-  local center_to_center_segment = Common.vector_sub(destination.left_center, origin.left_center)
+--[[
+curve_*_offset_* parameters for CSC (curve straight curve) are expected to be of this shape:
+{
+  orientation = [float],
+  position = { x = [float], y = [float] }
+}
+
+It is expected that they are "normalized" into their "direction", so orientation and x should be positive, y should be
+positive if the vehicle is going forward and negative if it's going in reverse.
+
+The functions will adapt the sings as needed.
+
+}]]
+function Dubins.LSL(
+  origin,
+  destination,
+  curve_1_offset_enter,
+  curve_2_offset_enter,
+  curve_offset_exit,
+  curve_1_radius,
+  curve_2_radius)
+
+  -- Find where the vehicle enters the first curve
+  -- cii
+  local curve_in_in =
+    Common.transform_local_to_world(
+    {
+      position = origin.position,
+      orientation = origin.orientation
+    },
+    {
+      position = {x = curve_1_offset_enter.position.x, y = curve_1_offset_enter.position.y},
+      orientation = curve_1_offset_enter.orientation
+    }
+  )
+
+  -- Find where is the center of rotation once the vehicle is in the curve
+  local curve_in_in_left =
+    Common.vector_rotate({x = 1, y = 0}, Common.over_2pi(math.pi / 2 + curve_in_in.orientation))
+
+  -- cic
+  local curve_in_center =
+    Common.vector_add(
+    Common.vector_mul(curve_in_in_left, curve_1_radius),
+    curve_in_in.position
+  )
+
+  -- Find where the vehicle exits the last curve
+
+  -- coo
+  local curve_out_out =
+    Common.transform_local_to_world(
+    {
+      position = destination.position,
+      orientation = destination.orientation
+    },
+    {
+      position = {x = -curve_offset_exit.position.x, y = curve_offset_exit.position.y},
+      orientation = -curve_offset_exit.orientation
+    }
+  )
+
+  -- Find where the center of rotation before exiting the last curve
+  local curve_out_out_left =
+    Common.vector_rotate({x = 1, y = 0}, Common.over_2pi(math.pi / 2 + curve_out_out.orientation))
+
+  -- coc
+  local curve_out_center =
+    Common.vector_add(
+    Common.vector_mul(curve_out_out_left, curve_2_radius),
+    curve_out_out.position
+  )
+
+  --
+
+  local center_to_center_segment = Common.vector_sub(curve_out_center, curve_in_center)
   local center_to_center_direction, center_to_center_length = Common.vector_normalize(center_to_center_segment)
+  local center_to_center_orientation = math.atan2(center_to_center_direction.y, center_to_center_direction.x)
 
-  local departure_offset =
-    Common.vector_mul(Common.vector_rotate(center_to_center_direction, -math.pi / 2), origin.turning_radius)
+  -- Find the distance between the center of rotation and the where the vehicle will be completely out of the curve,
+  -- straight.
+  -- d_to_coc
+  local distance_center_to_not_steering = Common.vector_distance(curve_out_center,destination.position)
 
-  local leave_point = Common.vector_add(departure_offset, origin.left_center)
-  local entry_point = Common.vector_add(leave_point, center_to_center_segment)
+  local straight_in_offset =
+    Common.vector_mul(Common.vector_rotate(center_to_center_direction, -math.pi / 2), distance_center_to_not_steering)
+
+  -- si
+  local straigth_in = Common.vector_add(straight_in_offset, curve_in_center)
+  -- so
+  local straight_out = Common.vector_add(straigth_in, center_to_center_segment)
+
+  --print(center_to_center_orientation)
+
+  -- Find the point where the vehicle starts to de-steer after the first curve
+  -- cio
+  local curve_in_out = Common.transform_local_to_world(
+    { position = straigth_in, orientation = center_to_center_orientation },
+    { position = {x = -curve_offset_exit.position.x, y = curve_offset_exit.position.y},
+      orientation = Common.clean_angle_over_2pi(curve_offset_exit.orientation + math.pi) }
+  )
+
+  -- Find the point where the vehicle is completely steering in the last curve
+  -- coi
+  local curve_out_in = Common.transform_local_to_world(
+    { position = straight_out, orientation = center_to_center_orientation },
+    { position = {x = curve_2_offset_enter.position.x, y = curve_2_offset_enter.position.y},
+      orientation = Common.clean_angle_over_2pi(curve_2_offset_enter.orientation) }
+  )
 
   local segment_1_length, origin_angle_in, origin_angle_out =
-    Common.get_arc_data(origin.left_center, origin.turning_radius, origin.position, leave_point)
+    Common.get_arc_data(curve_in_center, curve_1_radius, curve_in_in.position, curve_in_out.position)
   local segment_3_length, destination_angle_in, destination_angle_out =
-    Common.get_arc_data(destination.left_center, destination.turning_radius, entry_point, destination.position)
+    Common.get_arc_data(curve_out_center, curve_2_radius, curve_out_in.position, curve_out_out.position)
 
+  --print(segment_1_length, origin_angle_in, origin_angle_out)
   return {
-    leave_point = leave_point,
-    entry_point = entry_point,
-    origin_angles = {start = origin_angle_in, finish = origin_angle_out},
-    destination_angles = {start = destination_angle_in, finish = destination_angle_out},
+    origin = origin,
+    curve_in_in = curve_in_in,
+    curve_in_out = curve_in_out,
+    curve_in_center = curve_in_center,
+    curve_in_angles = {start = origin_angle_in, finish = origin_angle_out},
+    curve_in_radius = curve_1_radius,
+
+    straight_in = { position = straigth_in, orientation = center_to_center_orientation },
+    straight_out = { position = straight_out, orientation = center_to_center_orientation },
+
+    destination = destination,
+    curve_out_in = curve_out_in,
+    curve_out_out = curve_out_out,
+    curve_out_center = curve_out_center,
+    curve_out_angles = {start = destination_angle_in, finish = destination_angle_out},
+    curve_out_radius = curve_2_radius,
+
     segments_lengths = {
       segment_1_length,
       center_to_center_length,

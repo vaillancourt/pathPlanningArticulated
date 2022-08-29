@@ -1,6 +1,11 @@
 local Common = require "Common"
 local Vehicle = require "Vehicle"
+local VehicleData = require "VehicleData"
 local Dubins = require "Dubins"
+
+-- luacheck: globals love
+
+local test = require "test"
 
 io.stdout:setvbuf("no") -- This makes is so that print() statements print right away.
 
@@ -21,16 +26,24 @@ local KeyboardState = {
 
 local origin = {}
 local destination = {}
+local vehicle_data = {}
 
 local window_width, window_height = 768, 768
 
 function love.load(args)
+  vehicle_data = VehicleData:new()
+
+  -- print("dumping")
+  -- require "pl.pretty".dump(vd.data)
+  -- print("dumped")
+  --test.Common_transform_local_to_world()
+
   love.window.setMode(window_width, window_height, {resizable = false})
 
-  origin = Vehicle:new(nil, {x = window_width / 4, y = window_height / 2}, 0)
+  origin = Vehicle:new(nil, {x = window_width * 3 / 4, y = window_height / 2}, 0)
   origin.image = love.graphics.newImage("assets/truck_origin.png")
 
-  destination = Vehicle:new(nil, {x = window_width * 3 / 4, y = window_height / 2}, 0)
+  destination = Vehicle:new(nil, {x = window_width / 4, y = window_height / 2}, 0)
   destination.image = love.graphics.newImage("assets/truck_destination.png")
 end
 
@@ -50,8 +63,21 @@ local function update_keyboard_state()
   KeyboardState.rotate_ccw = love.keyboard.isDown("up")
 end
 
+
+local turning_thing = {
+  position = { x= 0, y=0},
+  orientation = 0
+}
+
 function love.update(dt)
   update_keyboard_state()
+
+  turning_thing.position.x = turning_thing.position.x + dt * 10.0
+  turning_thing.position.y = turning_thing.position.y + dt * 10.0
+  turning_thing.orientation = turning_thing.orientation + dt
+  if turning_thing.orientation > math.pi * 2 then
+    turning_thing.orientation = turning_thing.orientation - math.pi * 2
+  end
 
   local updateable
   if KeyboardState.selected == "origin" then
@@ -152,26 +178,26 @@ local function draw_one(truck, colour)
     sprite.pivot.x,
     sprite.pivot.y
   )
-  love.graphics.setColor(colour.r, colour.g, colour.b)
-  love.graphics.circle("fill", truck.position.x, truck.position.y, 5)
+  -- love.graphics.setColor(colour.r, colour.g, colour.b)
+  -- love.graphics.circle("fill", truck.position.x, truck.position.y, 5)
 
-  love.graphics.setColor(0, 1, 0)
-  love.graphics.line(truck.position.x, truck.position.y, truck.left_center.x, truck.left_center.y)
+  -- love.graphics.setColor(0, 1, 0)
+  -- love.graphics.line(truck.position.x, truck.position.y, truck.left_center.x, truck.left_center.y)
 
-  love.graphics.setColor(1, 0, 0)
-  love.graphics.line(truck.position.x, truck.position.y, truck.right_center.x, truck.right_center.y)
+  -- love.graphics.setColor(1, 0, 0)
+  -- love.graphics.line(truck.position.x, truck.position.y, truck.right_center.x, truck.right_center.y)
 
-  love.graphics.setColor(0, 0.25, 0)
-  love.graphics.circle("line", truck.left_center.x, truck.left_center.y, truck.turning_radius)
+  -- love.graphics.setColor(0, 0.25, 0)
+  -- love.graphics.circle("line", truck.left_center.x, truck.left_center.y, truck.turning_radius)
 
-  love.graphics.setColor(0.25, 0, 0)
-  love.graphics.circle("line", truck.right_center.x, truck.right_center.y, truck.turning_radius)
+  -- love.graphics.setColor(0.25, 0, 0)
+  -- love.graphics.circle("line", truck.right_center.x, truck.right_center.y, truck.turning_radius)
 
-  love.graphics.setColor(0.25, 0.25, 0.25)
-  local start = Common.vector_add(Common.vector_mul(truck.head, 200), truck.position)
-  local finish = Common.vector_add(Common.vector_mul(truck.head, -200), truck.position)
-  --love.graphics.line(start.x, start.y, finish.x, finish.y)
-  lineStipple(start.x, start.y, finish.x, finish.y)
+  -- love.graphics.setColor(0.25, 0.25, 0.25)
+  -- local start = Common.vector_add(Common.vector_mul(truck.head, 200), truck.position)
+  -- local finish = Common.vector_add(Common.vector_mul(truck.head, -200), truck.position)
+  -- --love.graphics.line(start.x, start.y, finish.x, finish.y)
+  -- lineStipple(start.x, start.y, finish.x, finish.y)
 
   love.graphics.setColor(1, 1, 1)
 end
@@ -186,44 +212,145 @@ local function draw_lsl(lsl_data, colour_)
 
   love.graphics.setColor(colour_)
 
-  love.graphics.line(lsl_data.leave_point.x, lsl_data.leave_point.y, lsl_data.entry_point.x, lsl_data.entry_point.y)
+  local alt_colour = {colour_[1] * 0.5, colour_[2] * 0.5, colour_[3] * 0.5}
+
+  -- curve_in lines
+  love.graphics.line(
+    lsl_data.origin.position.x,
+    lsl_data.origin.position.y,
+    lsl_data.curve_in_in.position.x,
+    lsl_data.curve_in_in.position.y
+  )
+  love.graphics.setColor(alt_colour)
+  love.graphics.line(
+    lsl_data.origin.position.x,
+    lsl_data.origin.position.y,
+    lsl_data.curve_in_center.x,
+    lsl_data.curve_in_center.y
+  )
+  love.graphics.setColor(colour_)
+
+  love.graphics.line(
+    lsl_data.curve_in_center.x,
+    lsl_data.curve_in_center.y,
+    lsl_data.curve_in_in.position.x,
+    lsl_data.curve_in_in.position.y
+  )
+
+
+  love.graphics.line(
+    lsl_data.curve_in_out.position.x,
+    lsl_data.curve_in_out.position.y,
+    lsl_data.straight_in.position.x,
+    lsl_data.straight_in.position.y
+  )
+  love.graphics.line(
+    lsl_data.curve_in_out.position.x,
+    lsl_data.curve_in_out.position.y,
+    lsl_data.curve_in_center.x,
+    lsl_data.curve_in_center.y
+  )
+  love.graphics.setColor(alt_colour)
+  love.graphics.line(
+    lsl_data.curve_in_center.x,
+    lsl_data.curve_in_center.y,
+    lsl_data.straight_in.position.x,
+    lsl_data.straight_in.position.y
+  )
+  love.graphics.setColor(colour_)
+
+
+  -- straight line
+  love.graphics.setColor(alt_colour)
+  love.graphics.line(
+    lsl_data.straight_in.position.x,
+    lsl_data.straight_in.position.y,
+    lsl_data.straight_out.position.x,
+    lsl_data.straight_out.position.y
+  )
+  love.graphics.setColor(colour_)
+
+
+  -- curve_out lines
+  love.graphics.line(
+    lsl_data.straight_out.position.x,
+    lsl_data.straight_out.position.y,
+    lsl_data.curve_out_in.position.x,
+    lsl_data.curve_out_in.position.y
+  )
+  love.graphics.setColor(alt_colour)
+  love.graphics.line(
+    lsl_data.straight_out.position.x,
+    lsl_data.straight_out.position.y,
+    lsl_data.curve_out_center.x,
+    lsl_data.curve_out_center.y
+  )
+  love.graphics.setColor(colour_)
+  love.graphics.line(
+    lsl_data.curve_out_center.x,
+    lsl_data.curve_out_center.y,
+    lsl_data.curve_out_in.position.x,
+    lsl_data.curve_out_in.position.y
+  )
+
+  love.graphics.line(
+    lsl_data.curve_out_out.position.x,
+    lsl_data.curve_out_out.position.y,
+    lsl_data.destination.position.x,
+    lsl_data.destination.position.y
+  )
+  love.graphics.line(
+    lsl_data.curve_out_out.position.x,
+    lsl_data.curve_out_out.position.y,
+    lsl_data.curve_out_center.x,
+    lsl_data.curve_out_center.y
+  )
+  love.graphics.setColor(alt_colour)
+  love.graphics.line(
+    lsl_data.curve_out_center.x,
+    lsl_data.curve_out_center.y,
+    lsl_data.destination.position.x,
+    lsl_data.destination.position.y
+  )
+  love.graphics.setColor(colour_)
+
   -- If the starting angle is numerically bigger than the final angle, the arc is drawn counter clockwise.
   -- If the final angle is numerically bigger than the starting angle, the arc is drawn clockwise.
   local draw_start
   local draw_finish
-  if lsl_data.origin_angles.start > lsl_data.origin_angles.finish then
-    draw_start = lsl_data.origin_angles.start
-    draw_finish = lsl_data.origin_angles.finish + math.pi * 2
+  if lsl_data.curve_in_angles.start > lsl_data.curve_in_angles.finish then
+    draw_start = lsl_data.curve_in_angles.start
+    draw_finish = lsl_data.curve_in_angles.finish + math.pi * 2
   else
-    draw_start = lsl_data.origin_angles.start
-    draw_finish = lsl_data.origin_angles.finish
+    draw_start = lsl_data.curve_in_angles.start
+    draw_finish = lsl_data.curve_in_angles.finish
   end
 
   love.graphics.arc(
     "line",
     "open",
-    origin.left_center.x,
-    origin.left_center.y,
-    origin.turning_radius,
+    lsl_data.curve_in_center.x,
+    lsl_data.curve_in_center.y,
+    lsl_data.curve_in_radius,
     draw_start,
     draw_finish
   )
 
   -- "end"
-  if lsl_data.destination_angles.start > lsl_data.destination_angles.finish then
-    draw_start = lsl_data.destination_angles.start
-    draw_finish = lsl_data.destination_angles.finish + math.pi * 2
+  if lsl_data.curve_out_angles.start > lsl_data.curve_out_angles.finish then
+    draw_start = lsl_data.curve_out_angles.start
+    draw_finish = lsl_data.curve_out_angles.finish + math.pi * 2
   else
-    draw_start = lsl_data.destination_angles.start
-    draw_finish = lsl_data.destination_angles.finish
+    draw_start = lsl_data.curve_out_angles.start
+    draw_finish = lsl_data.curve_out_angles.finish
   end
 
   love.graphics.arc(
     "line",
     "open",
-    destination.left_center.x,
-    destination.left_center.y,
-    destination.turning_radius,
+    lsl_data.curve_out_center.x,
+    lsl_data.curve_out_center.y,
+    lsl_data.curve_out_radius,
     draw_start,
     draw_finish
   )
@@ -533,23 +660,47 @@ local function draw_rlr(rlr_data, colour_)
 end
 
 function love.draw()
-
   draw_one(origin, {r = 1, g = 1, b = 0})
   draw_one(destination, {r = 0, g = 0, b = 1})
 
   local lsl_evaluate = true
-  local rsr_evaluate = true
-  local rsl_evaluate = true
-  local lsr_evaluate = true
+  local rsr_evaluate = false
+  local rsl_evaluate = false
+  local lsr_evaluate = false
   local lrl_evaluate = false
   local rlr_evaluate = false
 
-  local lsl_data = Dubins.LSL(origin, destination)
-  local rsr_data = Dubins.RSR(origin, destination)
-  local rsl_data = Dubins.RSL(origin, destination)
-  local lsr_data = Dubins.LSR(origin, destination)
-  local lrl_data = Dubins.LRL(origin, destination)
-  local rlr_data = Dubins.RLR(origin, destination)
+  -- function Dubins.LSL(
+  --   origin,
+  --   destination,
+  --   curve_1_offset_enter,
+  --   curve_2_offset_enter,
+  --   curve_offset_exit,
+  --   curve_1_radius,
+  --   curve_2_radius)
+
+  local curve_in_offset_enter = vehicle_data.offset_data.FORWARD.STOPPED.STEERING
+  local curve_out_offset_enter = vehicle_data.offset_data.FORWARD.MOVING.STEERING
+  local curve_offset_exit = vehicle_data.offset_data.FORWARD.MOVING.DESTEERING
+
+  local lsl_data = nil
+  if lsl_evaluate then
+    lsl_data =
+      Dubins.LSL(
+      origin,
+      destination,
+      curve_in_offset_enter,
+      curve_out_offset_enter,
+      curve_offset_exit,
+      vehicle_data.rRadius,
+      vehicle_data.rRadius
+    )
+  end
+  local rsr_data = rsr_evaluate and Dubins.RSR(origin, destination) or nil
+  local rsl_data = rsl_evaluate and Dubins.RSL(origin, destination) or nil
+  local lsr_data = lsr_evaluate and Dubins.LSR(origin, destination) or nil
+  local lrl_data = lrl_evaluate and Dubins.LRL(origin, destination) or nil
+  local rlr_data = rlr_evaluate and Dubins.RLR(origin, destination) or nil
 
   local lsl_colour = {0, 1, 1}
   local rsr_colour = {1, 0, 0}
@@ -558,14 +709,16 @@ function love.draw()
   local lrl_colour = {0, 0, 1}
   local rlr_colour = {1, 1, 0}
 
-  -- print(
-  --   "lsl ", lsl_data.segments_length_total, " ",
-  --   "rsr ", rsr_data.segments_length_total, " ",
-  --   "rsl ", rsl_data.segments_length_total, " ",
-  --   "lsr ", lsr_data.segments_length_total, " ",
-  --   "lrl ", lrl_data.segments_length_total, " ",
-  --   "rlr ", rlr_data.segments_length_total, " "
-  -- )
+  --print(
+  --  "lsl ",
+  --  lsl_data.segments_length_total,
+  --  " "
+    --   "rsr ", rsr_data.segments_length_total, " ",
+    --   "rsl ", rsl_data.segments_length_total, " ",
+    --   "lsr ", lsr_data.segments_length_total, " ",
+    --   "lrl ", lrl_data.segments_length_total, " ",
+    --   "rlr ", rlr_data.segments_length_total, " "
+  --)
   local shortest_length = math.huge
   local shortest_word = ""
 
@@ -628,4 +781,16 @@ function love.draw()
   elseif lrl_evaluate and shortest_word == "lrl" then
     draw_lrl(lrl_data, lrl_colour)
   end
+
+
+  -- local offseted = Common.transform_local_to_world(
+  --   turning_thing,
+  --   vehicle_data.offset_data.FORWARD.STOPPED.STEERING)
+
+  -- love.graphics.line(
+  --   turning_thing.position.x,
+  --   turning_thing.position.y,
+  --   offseted.position.x,
+  --   offseted.position.y
+  -- )
 end

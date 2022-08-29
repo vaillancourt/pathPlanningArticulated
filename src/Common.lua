@@ -78,11 +78,42 @@ function Common.vector_rotate(v, angle_over_2pi)
 end
 
 function Common.vector_print(x, y, name)
-  if name then
-    print(name .. " (" .. x .. ", " .. y .. ")")
-  else
-    print("(" .. x .. ", " .. y .. ")")
+  print(type(x))
+  require "pl/pretty".dump(x)
+  local theX = x
+  local theY = y
+  if type(x) == "table" then
+    theY = x.y
+    theX = x.x
   end
+  if name then
+    print(name .. " (" .. theX .. ", " .. theY .. ")")
+  else
+    print("(" .. theX .. ", " .. theY .. ")")
+  end
+end
+
+function Common.vector_distance(x1, y1, x2, y2)
+  if type(x1) == "table" and type(y1) == "table" then
+    local difference = Common.vector_sub(x1, y1)
+    return Common.vector_length(difference.x, difference.y)
+  elseif x1 and y1 and x2 and y2 then
+    local diffx, diffy = Common.vector_sub(x1, y1, x2, y2)
+    return Common.vector_length(diffx, diffy)
+  end
+  assert(false)
+end
+
+function Common.transform_local_to_world(local_frame, coords_to_transform)
+  local new_orientation = Common.clean_angle_over_2pi(local_frame.orientation + coords_to_transform.orientation)
+  local new_position = Common.vector_add(
+    Common.vector_rotate(coords_to_transform.position, local_frame.orientation),
+    local_frame.position)
+
+  return {
+    orientation = new_orientation,
+    position = new_position
+  }
 end
 
 function Common.equivalent(v1, v2, epsilon)
@@ -203,6 +234,9 @@ end
 function Common.get_arc_data(center, radius, start, finish)
   local normalized_start, start_length = Common.vector_normalize(Common.vector_sub(start, center))
   local normalized_finish, finish_length = Common.vector_normalize(Common.vector_sub(finish, center))
+
+  print(radius, start_length, finish_length)
+
 
   if not Common.equivalent(start_length, radius) or not Common.equivalent(finish_length, radius) then
     return math.huge, math.huge, math.huge
