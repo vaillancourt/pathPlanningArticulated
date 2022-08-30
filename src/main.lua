@@ -5,7 +5,7 @@ local Dubins = require "Dubins"
 
 -- luacheck: globals love
 
-local test = require "test"
+--local test = require "test"
 
 io.stdout:setvbuf("no") -- This makes is so that print() statements print right away.
 
@@ -63,21 +63,8 @@ local function update_keyboard_state()
   KeyboardState.rotate_ccw = love.keyboard.isDown("up")
 end
 
-
-local turning_thing = {
-  position = { x= 0, y=0},
-  orientation = 0
-}
-
 function love.update(dt)
   update_keyboard_state()
-
-  turning_thing.position.x = turning_thing.position.x + dt * 10.0
-  turning_thing.position.y = turning_thing.position.y + dt * 10.0
-  turning_thing.orientation = turning_thing.orientation + dt
-  if turning_thing.orientation > math.pi * 2 then
-    turning_thing.orientation = turning_thing.orientation - math.pi * 2
-  end
 
   local updateable
   if KeyboardState.selected == "origin" then
@@ -237,7 +224,6 @@ local function draw_lsl(lsl_data, colour_)
     lsl_data.curve_in_in.position.y
   )
 
-
   love.graphics.line(
     lsl_data.curve_in_out.position.x,
     lsl_data.curve_in_out.position.y,
@@ -259,7 +245,6 @@ local function draw_lsl(lsl_data, colour_)
   )
   love.graphics.setColor(colour_)
 
-
   -- straight line
   love.graphics.setColor(alt_colour)
   love.graphics.line(
@@ -269,7 +254,6 @@ local function draw_lsl(lsl_data, colour_)
     lsl_data.straight_out.position.y
   )
   love.graphics.setColor(colour_)
-
 
   -- curve_out lines
   love.graphics.line(
@@ -713,11 +697,11 @@ function love.draw()
   --  "lsl ",
   --  lsl_data.segments_length_total,
   --  " "
-    --   "rsr ", rsr_data.segments_length_total, " ",
-    --   "rsl ", rsl_data.segments_length_total, " ",
-    --   "lsr ", lsr_data.segments_length_total, " ",
-    --   "lrl ", lrl_data.segments_length_total, " ",
-    --   "rlr ", rlr_data.segments_length_total, " "
+  --   "rsr ", rsr_data.segments_length_total, " ",
+  --   "rsl ", rsl_data.segments_length_total, " ",
+  --   "lsr ", lsr_data.segments_length_total, " ",
+  --   "lrl ", lrl_data.segments_length_total, " ",
+  --   "rlr ", rlr_data.segments_length_total, " "
   --)
   local shortest_length = math.huge
   local shortest_word = ""
@@ -782,15 +766,55 @@ function love.draw()
     draw_lrl(lrl_data, lrl_colour)
   end
 
+  if true or lsl_data.segments_length_total < 50000 then
+    -- require "pl/pretty".dump(lsl_data.curve_in_center)
+    -- require "pl/pretty".dump(lsl_data.straight_in)
+    -- require "pl/pretty".dump(lsl_data.curve_out_center)
+    -- require "pl/pretty".dump(lsl_data.destination)
 
-  -- local offseted = Common.transform_local_to_world(
-  --   turning_thing,
-  --   vehicle_data.offset_data.FORWARD.STOPPED.STEERING)
+    local r1 = Common.vector_distance(lsl_data.curve_in_center, lsl_data.straight_in.position)
+    local r2 = Common.vector_distance(lsl_data.curve_out_center, lsl_data.destination.position)
+    r2 = r2 * 0.7
+    love.graphics.circle("line", lsl_data.curve_in_center.x, lsl_data.curve_in_center.y, r1)
+    love.graphics.circle("line", lsl_data.curve_out_center.x, lsl_data.curve_out_center.y, r2)
 
-  -- love.graphics.line(
-  --   turning_thing.position.x,
-  --   turning_thing.position.y,
-  --   offseted.position.x,
-  --   offseted.position.y
-  -- )
+    -- print(r1, r2)
+    local f = function(line_)
+      --require "pl/pretty".dump(line)
+
+      if not Common.equivalent(0, line_.b) then
+        local p1 = {x = 0, y = Common.line_get_y(line_, 0)}
+        local p2 = {x = 768, y = Common.line_get_y(line_, 768)}
+        --print ()
+        --require "pl/pretty".dump(p1)
+        --require "pl/pretty".dump(p2)
+        love.graphics.line(p1.x, p1.y, p2.x, p2.y)
+      end
+    end
+
+    local p = function(points_, colour_)
+      --require "pl/pretty".dump(colour_)
+
+      local sr, sg, sb, sa = love.graphics.getColor()
+
+      love.graphics.setColor(colour_)
+
+      local count = 0
+      for _, point in ipairs(points_) do
+        love.graphics.circle("fill", point.x, point.y, 2)
+        count = count + 1
+      end
+      print(count)
+      love.graphics.setColor(sr, sg, sb, sa)
+    end
+
+    local line = Common.get_tangent_to_two_circles(lsl_data.curve_in_center, lsl_data.curve_out_center, r1, r2)
+    p(Common.find_intersection_line_circle(line, {position = lsl_data.curve_in_center, radius = r1}), {1, 0, 0, 1})
+    p(Common.find_intersection_line_circle(line, {position = lsl_data.curve_out_center, radius = r2}), {1, 0, 0, 1})
+
+    f(Common.get_tangent_to_two_circles(lsl_data.curve_in_center, lsl_data.curve_out_center, r1, r2))
+  --f(Common.get_tangent_to_two_circles(lsl_data.curve_in_center, lsl_data.curve_out_center, r1, -r2))
+  --f(Common.get_tangent_to_two_circles(lsl_data.curve_in_center, lsl_data.curve_out_center, -r1, -r2))
+  --f(Common.get_tangent_to_two_circles(lsl_data.curve_in_center, lsl_data.curve_out_center, -r1, r2))
+  end
 end

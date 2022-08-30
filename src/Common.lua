@@ -78,8 +78,6 @@ function Common.vector_rotate(v, angle_over_2pi)
 end
 
 function Common.vector_print(x, y, name)
-  print(type(x))
-  require "pl/pretty".dump(x)
   local theX = x
   local theY = y
   if type(x) == "table" then
@@ -106,9 +104,8 @@ end
 
 function Common.transform_local_to_world(local_frame, coords_to_transform)
   local new_orientation = Common.clean_angle_over_2pi(local_frame.orientation + coords_to_transform.orientation)
-  local new_position = Common.vector_add(
-    Common.vector_rotate(coords_to_transform.position, local_frame.orientation),
-    local_frame.position)
+  local new_position =
+    Common.vector_add(Common.vector_rotate(coords_to_transform.position, local_frame.orientation), local_frame.position)
 
   return {
     orientation = new_orientation,
@@ -235,9 +232,6 @@ function Common.get_arc_data(center, radius, start, finish)
   local normalized_start, start_length = Common.vector_normalize(Common.vector_sub(start, center))
   local normalized_finish, finish_length = Common.vector_normalize(Common.vector_sub(finish, center))
 
-  print(radius, start_length, finish_length)
-
-
   if not Common.equivalent(start_length, radius) or not Common.equivalent(finish_length, radius) then
     return math.huge, math.huge, math.huge
   end
@@ -248,6 +242,97 @@ function Common.get_arc_data(center, radius, start, finish)
   return Common.over_2pi(angle_finish - angle_start) * radius, Common.over_2pi(angle_start), Common.over_2pi(
     angle_finish
   )
+end
+
+--[[
+  Given a line equation (a, b, c), and a x coordinate, find the associated y value.
+
+  No point is given if line_.b is equivalent to zero (nil is returnded).
+]]
+function Common.line_get_y(line_, x_)
+  if not Common.equivalent(0, line_.b) then
+    return -(line_.a / line_.b * x_) - (line_.c / line_.b)
+  else
+    return nil
+  end
+end
+
+--[[
+Given two circle centers and their radii, find a tangent to both circles if it exists.
+
+https://cp-algorithms.com/geometry/tangents-to-two-circles.html
+
+The page above doesn't clearly state what effects have the -/+ to the radii. AFAIK, assuming circles are centered on
+similar y, and that circle 1 has a lower x than circle 2's:
+- if both radii are positive: the line will be in y+ according to both circles
+- if circle1's radius is negative and circle2's radius is positive: the line will pass between both circles, on the y-
+  side for circle 1 and on the y+ side for circle 2
+- if circle1's radius is positive and circle2's radius is negative: the line will pass between both circles, on the y+
+  side for circle 1 and on the y- side for circle 2
+- if both radii are negative: the line will be in y- according to both circles
+
+@param circle_1_center_ the first circle, in the form of {x=..., y=...}
+@param circle_2_center_ the second circle, in the form of {x=..., y=...}
+@param circle_1_radius_ the radius of the first circle
+@param circle_2_radius_ the radius of the second circle
+
+@return the line equation in the form of {a=, b=, c=}, or nil if there is no tangent.
+]]
+function Common.get_tangent_to_two_circles(circle_1_center_, circle_2_center_, circle_1_radius_, circle_2_radius_)
+  local c = {x = circle_2_center_.x - circle_1_center_.x, y = circle_2_center_.y - circle_1_center_.y}
+  local r = circle_2_radius_ - circle_1_radius_
+  local z = c.x * c.x + c.y * c.y
+
+  local d = z - r * r
+
+  if Common.equivalent(d, 0) then
+    return nil
+  end
+
+  d = math.sqrt(math.abs(d))
+
+  local a = (c.x * r + c.y * d) / z
+  local b = (c.y * r - c.x * d) / z
+
+  return {
+    a = a,
+    b = b,
+    c = circle_1_radius_ - (a * circle_1_center_.x + b * circle_1_center_.y)
+  }
+end
+
+--[[
+Finds the point/s where a line and a circle intersect (if they exist).
+
+See https://cp-algorithms.com/geometry/circle-line-intersection.html#solution
+
+@param line_ the line in the form { a=..., b=..., c=... }
+@param circle_ the circle in the form { position = { x=..., y=..., }, radius= ... }
+
+@return list of 0, 1 or 2 points in the form of { x=..., y=... }
+]]
+function Common.find_intersection_line_circle(line_, circle_)
+  local r = circle_.radius
+  local a = line_.a
+  local b = line_.b
+  local c = line_.c + (a * circle_.position.x + b * circle_.position.y)
+
+  local x0 = -a * c / (a * a + b * b)
+  local y0 = -b * c / (a * a + b * b)
+
+  local epsilon = 0.000001
+  if c * c > r * r * (a * a + b * b) + epsilon then
+    return {}
+  elseif Common.equivalent(0, c * c - r * r * (a * a + b * b), epsilon) then
+    return {{x = x0 + circle_.position.x, y = y0 + circle_.position.y}}
+  else
+    local d = r * r - c * c / (a * a + b * b)
+    local mult = math.sqrt(d / (a * a + b * b))
+    return {
+      {x = x0 + b * mult + circle_.position.x, y = y0 - a * mult + circle_.position.y},
+      {x = x0 - b * mult + circle_.position.x, y = y0 + a * mult + circle_.position.y}
+    }
+  end
 end
 
 return Common
