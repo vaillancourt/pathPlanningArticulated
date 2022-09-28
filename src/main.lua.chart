@@ -1,0 +1,256 @@
+local VehicleData = require "VehicleData"
+local Common = require "Common"
+
+local vehicle_data = {}
+
+local GFX_SCALE = 200
+
+local window_width, window_height = 756, 756
+
+local function disp_y(y_)
+  return window_height - y_
+end
+
+local offset = {x = 150, y = window_height / 2}
+
+local function sc_x(x_)
+  return offset.x + GFX_SCALE * x_
+end
+local function sc_y(y_)
+  return offset.y + GFX_SCALE * y_
+end
+
+function love.load(args)
+  vehicle_data = VehicleData:new()
+
+  local min = {x = math.huge, y = math.huge}
+  local max = {x = -math.huge, y = -math.huge}
+
+  local pos = {}
+
+  pos =
+    vehicle_data.data["stop_fwd_left-right_reset"][1].entries[
+    vehicle_data.data["stop_fwd_left-right_reset"][1].last_entry
+  ].rearBodyPos
+  min.x = math.min(min.x, pos.x)
+  min.y = math.min(min.y, pos.y)
+  max.x = math.max(max.x, pos.x)
+  max.y = math.max(max.y, pos.y)
+  pos =
+    vehicle_data.data["stop_fwd_left-right_reset"][2].entries[
+    vehicle_data.data["stop_fwd_left-right_reset"][2].last_entry
+  ].rearBodyPos
+  min.x = math.min(min.x, pos.x)
+  min.y = math.min(min.y, pos.y)
+  max.x = math.max(max.x, pos.x)
+  max.y = math.max(max.y, pos.y)
+  pos =
+    vehicle_data.data["go_fwd_left-right_reset"][1].entries[vehicle_data.data["go_fwd_left-right_reset"][1].last_entry].rearBodyPos
+  min.x = math.min(min.x, pos.x)
+  min.y = math.min(min.y, pos.y)
+  max.x = math.max(max.x, pos.x)
+  max.y = math.max(max.y, pos.y)
+
+  print(min.x, max.x, min.y, max.y)
+
+  vehicle_data.min = min
+  vehicle_data.max = max
+
+  love.window.setMode(window_width, window_height, {resizable = false})
+end
+
+local function draw_gizmo(vector_, force_colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  local colour = force_colour_ or {0.8, 0.8, 0.8}
+
+  local arrow_end = Common.vector_add(vector_.position, Common.vector_rotate({x = 0.25, y = 0}, vector_.orientation))
+
+  love.graphics.setColor(colour)
+  love.graphics.circle("fill", sc_x(vector_.position.x), disp_y(sc_y(vector_.position.y)), 3)
+  love.graphics.line(
+    sc_x(vector_.position.x),
+    disp_y(sc_y(vector_.position.y)),
+    sc_x(arrow_end.x),
+    disp_y(sc_y(arrow_end.y))
+  )
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
+function love.draw()
+  love.graphics.setBackgroundColor(1, 1, 1)
+  local saved_offset = offset
+
+  local entries = {}
+  local last_index = {}
+  local current_index = {}
+  local last_entry = {}
+
+  offset.y = 3 * window_height / 4
+
+  entries = vehicle_data.data["stop_fwd_left-right_reset"][2].entries
+  last_index = vehicle_data.data["stop_fwd_left-right_reset"][2].last_entry
+  last_entry = entries[last_index]
+
+  current_index = 1
+
+  draw_gizmo({position = {x = 0, y = 0}, orientation = 0})
+
+  love.graphics.setColor(0.1, 0.1, 0.1)
+  love.graphics.line(
+    sc_x(last_entry.rearBodyPos.x - 0.125),
+    disp_y(sc_y(last_entry.rearBodyPos.y)),
+    sc_x(last_entry.rearBodyPos.x + 0.125),
+    disp_y(sc_y(last_entry.rearBodyPos.y))
+  )
+
+  love.graphics.setColor(0.5, 0.5, 0.8)
+  love.graphics.circle("line", sc_x(-0.375), disp_y(sc_y(0)), GFX_SCALE * 0.125)
+
+  love.graphics.setColor(1, 0, 0)
+  while (current_index < last_index) do
+    local current_entry = entries[current_index]
+    local next_entry = entries[current_index + 1]
+
+    love.graphics.line(
+      sc_x(current_entry.rearBodyPos.x),
+      disp_y(sc_y(current_entry.rearBodyPos.y)),
+      sc_x(next_entry.rearBodyPos.x),
+      disp_y(sc_y(next_entry.rearBodyPos.y))
+    )
+
+    current_index = current_index + 1
+  end
+
+  draw_gizmo(
+    {
+      position = {x = last_entry.rearBodyPos.x, y = last_entry.rearBodyPos.y},
+      orientation = last_entry.rearBodyAngle
+    }
+  )
+
+  love.graphics.setColor(0.5, 0.5, 0.8)
+  love.graphics.line(
+    sc_x(vehicle_data.max.x + 0.5 + 0.125),
+    disp_y(sc_y(0)),
+    sc_x(vehicle_data.max.x + 0.5 - 0.125),
+    disp_y(sc_y(0))
+  )
+
+  -----------
+
+  offset.y = window_height / 2
+
+  entries = vehicle_data.data["stop_fwd_left-right_reset"][1].entries
+  last_index = vehicle_data.data["stop_fwd_left-right_reset"][1].last_entry
+  last_entry = entries[last_index]
+
+  current_index = 1
+
+  draw_gizmo({position = {x = 0, y = 0}, orientation = 0})
+
+  love.graphics.setColor(0.1, 0.1, 0.1)
+  love.graphics.line(
+    sc_x(last_entry.rearBodyPos.x - 0.125),
+    disp_y(sc_y(last_entry.rearBodyPos.y)),
+    sc_x(last_entry.rearBodyPos.x + 0.125),
+    disp_y(sc_y(last_entry.rearBodyPos.y))
+  )
+
+  love.graphics.setColor(0.5, 0.5, 0.8)
+  love.graphics.line(sc_x(-0.5), disp_y(sc_y(0)), sc_x(-0.25), disp_y(sc_y(0)))
+
+  love.graphics.setColor(0, 1, 0)
+  while (current_index < last_index) do
+    local current_entry = entries[current_index]
+    local next_entry = entries[current_index + 1]
+
+    love.graphics.line(
+      sc_x(current_entry.rearBodyPos.x),
+      disp_y(sc_y(current_entry.rearBodyPos.y)),
+      sc_x(next_entry.rearBodyPos.x),
+      disp_y(sc_y(next_entry.rearBodyPos.y))
+    )
+
+    current_index = current_index + 1
+  end
+
+  draw_gizmo(
+    {
+      position = {x = last_entry.rearBodyPos.x, y = last_entry.rearBodyPos.y},
+      orientation = last_entry.rearBodyAngle
+    }
+  )
+
+  love.graphics.setColor(0.5, 0.5, 0.8)
+  love.graphics.circle("line", sc_x(vehicle_data.max.x + 0.5), disp_y(sc_y(0)), GFX_SCALE * 0.125)
+
+  -----------------
+
+  offset.y = window_height / 4
+
+  -- love.graphics.setColor(0.1, 0.1, 0.1)
+  -- -- love.graphics.line(sc_x(0), disp_y(sc_y(0)), sc_x(1000), disp_y(sc_y(0)))
+  -- -- love.graphics.line(sc_x(0), disp_y(sc_y(0)), sc_x(0), disp_y(sc_y(1000)))
+  -- love.graphics.line(
+  --   sc_x(0),
+  --   disp_y(sc_y(last_entry.rearBodyPos.y)),
+  --   sc_x(1000),
+  --   disp_y(sc_y(last_entry.rearBodyPos.y))
+  -- )
+
+  entries = vehicle_data.data["go_fwd_left-right_reset"][1].entries
+  last_index = vehicle_data.data["go_fwd_left-right_reset"][1].last_entry
+  last_entry = entries[last_index]
+
+  current_index = 1
+
+  -- start gizmo
+  draw_gizmo({position = {x = 0, y = 0}, orientation = 0})
+
+  -- end 'straight'
+  love.graphics.setColor(0.1, 0.1, 0.1)
+  love.graphics.line(
+    sc_x(last_entry.rearBodyPos.x - 0.125),
+    disp_y(sc_y(last_entry.rearBodyPos.y)),
+    sc_x(last_entry.rearBodyPos.x + 0.125),
+    disp_y(sc_y(last_entry.rearBodyPos.y))
+  )
+
+  love.graphics.setColor(0.5, 0.5, 0.8)
+  love.graphics.line(sc_x(-0.5), disp_y(sc_y(0)), sc_x(-0.25), disp_y(sc_y(0)))
+
+  love.graphics.setColor(0, 0, 1)
+  while (current_index < last_index) do
+    local current_entry = entries[current_index]
+    local next_entry = entries[current_index + 1]
+
+    love.graphics.line(
+      sc_x(current_entry.rearBodyPos.x),
+      disp_y(sc_y(current_entry.rearBodyPos.y)),
+      sc_x(next_entry.rearBodyPos.x),
+      disp_y(sc_y(next_entry.rearBodyPos.y))
+    )
+
+    current_index = current_index + 1
+  end
+
+  draw_gizmo(
+    {
+      position = {x = last_entry.rearBodyPos.x, y = last_entry.rearBodyPos.y},
+      orientation = last_entry.rearBodyAngle
+    }
+  )
+
+  love.graphics.setColor(0.5, 0.5, 0.8)
+  love.graphics.circle("line", sc_x(vehicle_data.max.x + 0.5), disp_y(sc_y(0)), GFX_SCALE * 0.125)
+
+  offset = saved_offset
+end
+
+function love.keyreleased(key)
+  if key == "escape" then
+    love.event.quit()
+  end
+end

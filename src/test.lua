@@ -16,7 +16,6 @@ function test.Common_transform_local_to_world()
   local new_tx = Common.transform_local_to_world(origin, txed)
   Common.vector_print(new_tx.position)
   print(new_tx.orientation)
-
 end
 
 return test

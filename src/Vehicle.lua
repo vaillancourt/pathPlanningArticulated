@@ -1,19 +1,17 @@
 local Common = require "Common"
+local Vector2 = require "Vector2"
 
 local Vehicle = {
-  position = {x = 0, y = 0},
+  position = Vector2(0, 0),
   orientation = 0,
-  left = {x = 0, y = 1},
-  right = {x = 0, y = -1},
-  head = {x = 1, y = 0},
-  --turning_radius = 95,
-  --left_center = {x = 0, y = 95},
-  --right_center = {x = 0, y = -95}
+  left = Vector2(0, 1),
+  right = Vector2(0, -1),
+  head = Vector2(1, 0)
 }
 
 function Vehicle.new(self, o, position, orientation)
---  require "pl.pretty".dump(self)
---  require "pl.pretty".dump(o)
+  --  require "pl.pretty".dump(self)
+  --  require "pl.pretty".dump(o)
   o = o or {}
   setmetatable(o, self)
   self.__index = self
@@ -29,9 +27,9 @@ function Vehicle.new(self, o, position, orientation)
 end
 
 function Vehicle.update(self)
-  self.left = Common.vector_rotate({x = 1, y = 0}, Common.over_2pi(math.pi / 2 + self.orientation))
-  self.right = Common.vector_rotate({x = 1, y = 0}, Common.over_2pi(-(math.pi / 2) + self.orientation))
-  self.head = Common.vector_rotate({x = 1, y = 0}, self.orientation)
+  self.left = Vector2(1, 0):rotate_copy(Common.over_2pi(math.pi / 2 + self.orientation))
+  self.right = Vector2(1, 0):rotate_copy(Common.over_2pi(-(math.pi / 2) + self.orientation))
+  self.head = Vector2(1, 0):rotate_copy(self.orientation)
 end
 
 return Vehicle

@@ -1,117 +1,10 @@
+-- https://stackoverflow.com/a/54899251
 local Common = {}
+package.loaded[...] = Common
 
-function Common.world_to_gfx(world_coord)
-  -- for now, 1 meter is one pixel
-  return world_coord
-end
+local Vector2 = require "Vector2"
 
-function Common.v_to_t(x, y)
-  return {x, y}
-end
-
-function Common.t_to_v(t)
-  return t[1], t[2]
-end
-
-function Common.dot_product(x1, y1, x2, y2)
-  return (x1 * x2) + (y1 * y2)
-end
-
-function Common.vector_length_2(x, y)
-  return x * x + y * y
-end
-
-function Common.vector_length(x, y)
-  return math.sqrt(Common.vector_length_2(x, y))
-end
-
-function Common.vector_normalize(x, y)
-  if type(x) == "table" then
-    y = x.y
-    x = x.x
-    local length = Common.vector_length(x, y)
-    return {x = x / length, y = y / length}, length
-  elseif x and y then
-    local length = Common.vector_length(x, y)
-    return x / length, y / length, length
-  end
-  assert(false)
-end
-
-function Common.vector_add(x1, y1, x2, y2)
-  if type(x1) == "table" and type(y1) == "table" then
-    local v1, v2 = x1, y1
-    return {x = v1.x + v2.x, y = v1.y + v2.y}
-  elseif x1 and y1 and x2 and y2 then
-    return x1 + x2, y1 + y2
-  end
-  assert(false)
-end
-
-function Common.vector_mul(x, y, val)
-  if type(x) == "table" then
-    val = y
-    y = x.y
-    x = x.x
-    return {x = x * val, y = y * val}
-  elseif x and y and val then
-    return x * val, y * val
-  end
-  assert(false)
-end
-
-function Common.vector_sub(x1, y1, x2, y2)
-  if type(x1) == "table" and type(y1) == "table" then
-    local v1, v2 = x1, y1
-    return {x = v1.x - v2.x, y = v1.y - v2.y}
-  elseif x1 and y1 and x2 and y2 then
-    return x1 - x2, y1 - y2
-  end
-  assert(false)
-end
-
-function Common.vector_rotate(v, angle_over_2pi)
-  return {
-    x = math.cos(angle_over_2pi) * v.x - math.sin(angle_over_2pi) * v.y,
-    y = math.sin(angle_over_2pi) * v.x + math.cos(angle_over_2pi) * v.y
-  }
-end
-
-function Common.vector_print(x, y, name)
-  local theX = x
-  local theY = y
-  if type(x) == "table" then
-    theY = x.y
-    theX = x.x
-  end
-  if name then
-    print(name .. " (" .. theX .. ", " .. theY .. ")")
-  else
-    print("(" .. theX .. ", " .. theY .. ")")
-  end
-end
-
-function Common.vector_distance(x1, y1, x2, y2)
-  if type(x1) == "table" and type(y1) == "table" then
-    local difference = Common.vector_sub(x1, y1)
-    return Common.vector_length(difference.x, difference.y)
-  elseif x1 and y1 and x2 and y2 then
-    local diffx, diffy = Common.vector_sub(x1, y1, x2, y2)
-    return Common.vector_length(diffx, diffy)
-  end
-  assert(false)
-end
-
-function Common.transform_local_to_world(local_frame, coords_to_transform)
-  local new_orientation = Common.clean_angle_over_2pi(local_frame.orientation + coords_to_transform.orientation)
-  local new_position =
-    Common.vector_add(Common.vector_rotate(coords_to_transform.position, local_frame.orientation), local_frame.position)
-
-  return {
-    orientation = new_orientation,
-    position = new_position
-  }
-end
+-- luacheck: globals love
 
 function Common.equivalent(v1, v2, epsilon)
   epsilon = epsilon or 0.000001
@@ -197,9 +90,17 @@ function Common.over_2pi(angle_minus_pi_to_pi)
   return 2 * math.pi + angle_minus_pi_to_pi
 end
 
+-- An atan2 version that returns an angle in the range of [0..2pi).
+function Common.atan2(y_, x_)
+  return Common.over_2pi(math.atan2(y_, x_))
+end
+
 function Common.clean_angle_over_2pi(angle_over_2pi)
   while angle_over_2pi >= 2 * math.pi do
     angle_over_2pi = angle_over_2pi - 2 * math.pi
+  end
+  while angle_over_2pi < 0 do
+    angle_over_2pi = angle_over_2pi + 2 * math.pi
   end
   return angle_over_2pi
 end
@@ -220,26 +121,35 @@ end
 --
 -- If the points presented don't appear to be on the circle, math.huge is returned for all the values.
 --
--- @param center table ({x:, y:}) of the coordinates of the center of the circle.
--- @param radius number value of the radius of the circle
--- @param start table ({x:, y:}) of a point on the circle where the angle "starts"; should be on the circle edge.
--- @param finish table ({x:, y:}) of a point on the circle where the angle "finishes"; should be on the circle edge.
+-- @param center_ Vector2 of the coordinates of the center of the circle.
+-- @param radius_ number value of the radius of the circle
+-- @param start_ Vector2 of a point on the circle where the angle "starts"; should be on the circle edge.
+-- @param finish_ Vector2 of a point on the circle where the angle "finishes"; should be on the circle edge.
+-- @param dir_ The direction of start_ w.r.t. finish_: 1 for counter-clockwise, -1 for clockwise.
 --
 -- @return angle between the two points, or math.huge if both points are not on the circle edge.
 -- @return the angle where start is, or math.huge if both points are not on the circle edge.
 -- @return the angle where finish is, or math.hug if both points are not on the circle edge.
-function Common.get_arc_data(center, radius, start, finish)
-  local normalized_start, start_length = Common.vector_normalize(Common.vector_sub(start, center))
-  local normalized_finish, finish_length = Common.vector_normalize(Common.vector_sub(finish, center))
+function Common.get_arc_data(center_, radius_, start_, finish_, dir_)
+  local normalized_start = start_ - center_
+  local start_length = normalized_start:normalize()
+  local normalized_finish = finish_ - center_
+  local finish_length = normalized_finish:normalize()
 
-  if not Common.equivalent(start_length, radius) or not Common.equivalent(finish_length, radius) then
+  if not Common.equivalent(start_length, radius_) or not Common.equivalent(finish_length, radius_) then
+    --print("oops", radius_, start_length, finish_length)
     return math.huge, math.huge, math.huge
   end
+  --print("oook", radius_, start_length, finish_length)
 
-  local angle_start = math.atan2(normalized_start.y, normalized_start.x)
-  local angle_finish = math.atan2(normalized_finish.y, normalized_finish.x)
+  local angle_start = Common.atan2(normalized_start.y, normalized_start.x)
+  local angle_finish = Common.atan2(normalized_finish.y, normalized_finish.x)
 
-  return Common.over_2pi(angle_finish - angle_start) * radius, Common.over_2pi(angle_start), Common.over_2pi(
+  local range = angle_finish - angle_start
+  if dir_ == -1 then
+    range = angle_start - angle_finish
+  end
+  return Common.clean_angle_over_2pi(range) * radius_, Common.clean_angle_over_2pi(angle_start), Common.clean_angle_over_2pi(
     angle_finish
   )
 end
@@ -324,15 +234,58 @@ function Common.find_intersection_line_circle(line_, circle_)
   if c * c > r * r * (a * a + b * b) + epsilon then
     return {}
   elseif Common.equivalent(0, c * c - r * r * (a * a + b * b), epsilon) then
-    return {{x = x0 + circle_.position.x, y = y0 + circle_.position.y}}
+    return {Vector2(x0 + circle_.position.x, y0 + circle_.position.y)}
   else
     local d = r * r - c * c / (a * a + b * b)
     local mult = math.sqrt(d / (a * a + b * b))
     return {
-      {x = x0 + b * mult + circle_.position.x, y = y0 - a * mult + circle_.position.y},
-      {x = x0 - b * mult + circle_.position.x, y = y0 + a * mult + circle_.position.y}
+      Vector2(x0 + b * mult + circle_.position.x, y0 - a * mult + circle_.position.y),
+      Vector2(x0 - b * mult + circle_.position.x, y0 + a * mult + circle_.position.y)
     }
   end
+end
+
+--[[
+  With the three sides of the triangle supplied, finds the angles of the triangle.
+]]
+function Common.triangle_anlges_from_side_lengths(side_a_, side_b_, side_c_)
+  local a2 = side_a_ * side_a_
+  local b2 = side_b_ * side_b_
+  local c2 = side_c_ * side_c_
+
+  local A = math.acos((b2 + c2 - a2) / (2 * side_b_ * side_c_))
+  local B = math.acos((a2 + c2 - b2) / (2 * side_a_ * side_c_))
+  local C = math.acos((a2 + b2 - c2) / (2 * side_a_ * side_b_))
+
+  return {A = A, B = B, C = C}
+end
+
+function Common.get_line_from_point_slope(point_a_, angle_over_2pi_)
+  local pa = point_a_
+  local pb = point_a_ + Vector2(1, 0):rotate_copy(angle_over_2pi_)
+
+  return {
+    a = pa.y - pb.y,
+    b = pb.x - pa.x,
+    c = pa.x * pb.y - pb.x * pa.y
+  }
+end
+
+--[[
+  https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_an_equation
+]]
+function Common.get_distance_line_point(line_, point_)
+  local a = line_.a
+  local b = line_.b
+  local c = line_.c
+  local x0 = point_.x
+  local y0 = point_.y
+
+  local a2b2 = a * a + b * b
+  local distance = math.abs(a * x0 + b * y0 + c) / math.sqrt(a2b2)
+  local position_on_line = Vector2((b * (b * x0 - a * y0) - a * c) / a2b2, (a * (-b * x0 + a * y0) - b * c) / a2b2)
+
+  return distance, position_on_line
 end
 
 return Common
