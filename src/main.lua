@@ -309,7 +309,7 @@ local function draw_curve(data_, colour_)
       "open",
       sc_x(data_.curve_in_center.x),
       disp_y(sc_y(data_.curve_in_center.y)),
-      GFX_SCALE * data_.curve_in_radius,
+      GFX_SCALE * data_.input.curve_in_radius_,
       draw_start,
       draw_finish
     )
@@ -330,7 +330,7 @@ local function draw_curve(data_, colour_)
       "open",
       sc_x(data_.curve_out_center.x),
       disp_y(sc_y(data_.curve_out_center.y)),
-      GFX_SCALE * data_.curve_out_radius,
+      GFX_SCALE * data_.input.curve_out_radius_,
       draw_start,
       draw_finish
     )
@@ -349,10 +349,6 @@ function love.draw()
   local rsl_evaluate = true
   local lsr_evaluate = true
 
-  local curve_in_offset_enter = vehicle_data.offset_data.FORWARD.STOPPED.STEERING
-  local curve_out_offset_enter = vehicle_data.offset_data.FORWARD.MOVING.STEERING
-  local curve_offset_exit = vehicle_data.offset_data.FORWARD.MOVING.DESTEERING
-
   local lsl_data = nil
   local rsr_data = nil
   local rsl_data = nil
@@ -360,59 +356,19 @@ function love.draw()
 
   if lsl_evaluate then
     lsl_data =
-      Planning.ComputePath(
-      origin,
-      destination,
-      curve_in_offset_enter,
-      curve_out_offset_enter,
-      curve_offset_exit,
-      vehicle_data.rRadius,
-      vehicle_data.rRadius,
-      Planning.LEFT,
-      Planning.LEFT
-    )
+      Planning.ComputePath(origin, destination, vehicle_data, Planning.START_STOPPED, Planning.LEFT, Planning.LEFT)
   end
   if rsr_evaluate then
     rsr_data =
-      Planning.ComputePath(
-      origin,
-      destination,
-      curve_in_offset_enter,
-      curve_out_offset_enter,
-      curve_offset_exit,
-      vehicle_data.rRadius,
-      vehicle_data.rRadius,
-      Planning.RIGHT,
-      Planning.RIGHT
-    )
+      Planning.ComputePath(origin, destination, vehicle_data, Planning.START_STOPPED, Planning.RIGHT, Planning.RIGHT)
   end
   if rsl_evaluate then
     rsl_data =
-      Planning.ComputePath(
-      origin,
-      destination,
-      curve_in_offset_enter,
-      curve_out_offset_enter,
-      curve_offset_exit,
-      vehicle_data.rRadius,
-      vehicle_data.rRadius,
-      Planning.RIGHT,
-      Planning.LEFT
-    )
+      Planning.ComputePath(origin, destination, vehicle_data, Planning.START_STOPPED, Planning.RIGHT, Planning.LEFT)
   end
   if lsr_evaluate then
     lsr_data =
-      Planning.ComputePath(
-      origin,
-      destination,
-      curve_in_offset_enter,
-      curve_out_offset_enter,
-      curve_offset_exit,
-      vehicle_data.rRadius,
-      vehicle_data.rRadius,
-      Planning.LEFT,
-      Planning.RIGHT
-    )
+      Planning.ComputePath(origin, destination, vehicle_data, Planning.START_STOPPED, Planning.LEFT, Planning.RIGHT)
   end
 
   local lsl_colour = {0, 1, 1}

@@ -14,7 +14,9 @@ local Planning = {
   LEFT = 1,
   CCW = 1,
   RIGHT = -1,
-  CW = -1
+  CW = -1,
+  START_STOPPED = "STOPPED",
+  START_MOVING = "MOVING"
 }
 
 function Planning.transform_local_to_world(local_frame, coords_to_transform)
@@ -45,11 +47,8 @@ end
 function Planning.ComputePath(
   origin_,
   destination_,
-  curve_in_offset_enter_,
-  curve_out_offset_enter_,
-  curve_offset_exit_,
-  curve_in_radius_,
-  curve_out_radius_,
+  vehicle_data_,
+  start_state_,
   turning_direction_in_,
   turning_direction_out_)
   local td_i = turning_direction_in_
@@ -57,6 +56,22 @@ function Planning.ComputePath(
 
   assert(td_i == Planning.LEFT or td_i == Planning.RIGHT, "invalid direction")
   assert(td_o == Planning.LEFT or td_o == Planning.RIGHT, "invalid direction")
+
+  local data_key_root = "FORWARD."
+
+  local find_curve_data = function(key_)
+    local entry_index = vehicle_data_.data[key_].last_entry
+    local last_entry = vehicle_data_.data[key_].entries[entry_index]
+    local position = last_entry.rear_body_pos
+    local orientation = last_entry.rear_body_angle
+    local turning_radius = last_entry.turning_radius
+
+    return {position = position, orientation = orientation}, turning_radius
+  end
+
+  local curve_in_offset_enter_, curve_in_radius_ = find_curve_data(data_key_root .. start_state_ .. "." .. "STEERING")
+  local curve_out_offset_enter_, curve_out_radius_ = find_curve_data(data_key_root .. "MOVING" .. "." .. "STEERING")
+  local curve_offset_exit_, _ = find_curve_data(data_key_root .. "MOVING" .. "." .. "DESTEERING")
 
   local ci_cii = {
     position = Vector2(curve_in_offset_enter_.position.x, curve_in_offset_enter_.position.y * td_i),

@@ -5,53 +5,9 @@ local Vector2 = require "Vector2"
 local SCALE = 1.0
 
 local VehicleData = {
-  data = {},
-  rRadius = 5.15325 * SCALE,
-  offset_data = {
-    FORWARD = {
-      MOVING = {
-        STEERING = {
-          -- stop_fwd_left-right_reset	3	144	1.96028	0.1279	0.0223739	0.78039
-          orientation = -0.0223739,
-          position = Vector2(1.96028 * SCALE, -0.1279 * SCALE)
-        },
-        DESTEERING = {
-          -- stop_fwd_left-right_reset	2	157	1.74404	0.574084	0.293663	-0.00501247
-          orientation = 0.293663,
-          position = Vector2(1.74404 * SCALE, 0.574084 * SCALE)
-        }
-      },
-      STOPPED = {
-        STEERING = {
-          -- stop_fwd_left-right_reset	1	142	1.82853	-0.111583	-0.0225189	-0.780212
-          orientation = -0.0225189,
-          position = Vector2(1.82853 * SCALE, -0.111583 * SCALE)
-        }
-      }
-    },
-    REVERSE = {
-      MOVING = {
-        STEERING = {
-          -- stop_rev_left-right_reset	3	145	-0.788294	0.121861	0.228424	0.779899
-          orientation = 0.228424,
-          position = Vector2(0.788294 * SCALE, 0.121861 * SCALE)
-        },
-        DESTEERING = {
-          -- stop_rev_left-right_reset	2	161	-1.14171	0.0526548	0.0785967	-0.0050098
-          orientation = 0.0785967,
-          position = Vector2(1.14171 * SCALE, 0.0526548 * SCALE)
-        }
-      },
-      STOPPED = {
-        STEERING = {
-          -- stop_rev_left-right_reset	1	144	-0.751856	-0.115498	-0.22438	-0.780039
-          orientation = 0.22438,
-          position = Vector2(0.751856 * SCALE, 0.115498 * SCALE)
-        }
-      }
-    }
-  }
+  data = {}
 }
+
 -- luacheck: globals string
 -- https://nocurve.com/2014/03/05/simple-csv-read-and-write-using-lua/
 function string:split(sSeparator, nMax, bRegexp)
@@ -98,7 +54,7 @@ function VehicleData:new(o)
   end
 
   local data = {}
-  local tests = {}
+  local phases = {}
   local was_first_line_processed = false
   for line in data_file:lines() do
     if not was_first_line_processed then
@@ -107,50 +63,46 @@ function VehicleData:new(o)
     end
 
     local line_content = line:split(",")
-    -- 1: test
-    -- 2: state
-    -- 3: entryId
-    -- 4: rearBodyPosX
-    -- 5: rearBodyPosY
-    -- 6: rearBodyAngle
-    -- 7: jointAngle
+    local phase__ = 1
+    local frame__ = 2
+    local turningRadius__ = 3
+    local rearBodyPosX__ = 4
+    local rearBodyPosY__ = 5
+    local rearBodyHeading__ = 6
+    local centerOfRotationX__ = 7
+    local centerOfRotationY__ = 8
+    local jointAngle__ = 9
 
-    local test = line_content[1]
-    tests[test] = true
-    local state = tonumber(line_content[2])
-    local entryId = tonumber(line_content[3])
-    local rearBodyPos = {x = tonumber(line_content[4]), y = tonumber(line_content[5])}
-    local rearBodyAngle = tonumber(line_content[6])
-    local jointAngle = tonumber(line_content[7])
+    local phase = line_content[phase__]
+    phases[phase] = true
+    local entryId = tonumber(line_content[frame__])
+    local turning_radius = tonumber(line_content[turningRadius__])
+    local rearBodyPos = Vector2(tonumber(line_content[rearBodyPosX__]), tonumber(line_content[rearBodyPosY__]))
+    local rearBodyAngle = tonumber(line_content[rearBodyHeading__])
+    local jointAngle = tonumber(line_content[jointAngle__])
 
-    -- print(line)
-    -- print("line_content:")
-    -- require "pl.pretty".dump(line_content)
-    -- print(state, entryId)
-    if state == 1 and entryId == 1 then
-      -- print("pouf")
-      data[test] = {}
-      data[test][1] = {entries = {}, last_entry = 0}
-      data[test][2] = {entries = {}, last_entry = 0}
-      data[test][3] = {entries = {}, last_entry = 0}
-      data[test][4] = {entries = {}, last_entry = 0}
+    if entryId == 1 then
+      data[phase] = {entries = {}, last_entry = 0}
     end
 
-    -- print(data[test])
-    -- print(data[test][state])
     table.insert(
-      data[test][state].entries,
-      {rearBodyPos = rearBodyPos, rearBodyAngle = rearBodyAngle, jointAngle = jointAngle}
+      data[phase].entries,
+      {
+        rear_body_pos = rearBodyPos,
+        rear_body_angle = rearBodyAngle,
+        joint_angle = jointAngle,
+        turning_radius = turning_radius
+      }
     )
-    if entryId > data[test][state].last_entry then
-      data[test][state].last_entry = entryId
+    if entryId > data[phase].last_entry then
+      data[phase].last_entry = entryId
     end
 
     ::continue::
   end
 
   o.data = data
-  o.tests = tests
+  o.phases = phases
 
   data_file:close()
 
