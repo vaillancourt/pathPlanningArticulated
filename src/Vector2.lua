@@ -101,6 +101,26 @@ function Vector2.rotate_copy(self_, angle_over_2pi_)
   return Vector2(x, y)
 end
 
+function Vector2.rotate_about_point_copy(self_, point_of_rotation_, angle_over_2pi_)
+  local moved = self_ - point_of_rotation_
+  moved:rotate(angle_over_2pi_)
+  return moved + point_of_rotation_
+end
+
+function Vector2.rotate_free_about_point(free_vector_, free_vector_origin_, point_of_rotation_, angle_over_2pi_)
+  -- Rotate the vector
+  local rotated_free_vector = free_vector_:rotate_copy(angle_over_2pi_)
+
+  -- Move the origin w.r.t. the center
+  local from_origin = free_vector_origin_ - point_of_rotation_
+  -- rotate it
+  from_origin:rotate(angle_over_2pi_)
+  -- move it back
+  from_origin = from_origin + point_of_rotation_
+
+  return rotated_free_vector, from_origin
+end
+
 function Vector2.distance(self_, other_)
   local diff = self_ - other_
   return diff:length()

@@ -325,6 +325,65 @@ local function draw_label(text_, position_)
   love.graphics.setColor(sr, sg, sb, sa)
 end
 
+local function draw_straight_curve(data_, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  local alt_colour = {colour_[1] * 0.5, colour_[2] * 0.5, colour_[3] * 0.5}
+
+  local do_draw = function()
+    love.graphics.setColor(0.85, 0.85, 0.85)
+    draw_line(data_.input.line_origin)
+
+    draw_segment(data_.curve_out_center, data_.straight_out.position)
+    draw_segment(data_.curve_out_center, data_.curve_out_in.position)
+
+    -- curve_out lines
+    -- love.graphics.setColor(alt_colour)
+    -- draw_segment(data_.input.destination_.position, data_.curve_out_out.position)
+
+    -- love.graphics.setColor(alt_colour)
+    -- draw_segment(data_.curve_out_in.position, data_.straight_out.position)
+
+    -- -- straight
+    -- love.graphics.setColor(colour_)
+    -- draw_segment(data_.input.origin_.position, data_.straight_out.position)
+
+    -- love.graphics.setColor(1, 0, 0)
+    -- draw_circle(data_.curve_out_center, 3 / GFX_SCALE, "fill")
+    -- love.graphics.setColor(0, 1, 0)
+    -- --draw_circle(data_.curve_out_in_center, 3 / GFX_SCALE, "fill")
+
+    -- draw_gizmo(data_.curve_out_out)
+    -- draw_gizmo(data_.curve_out_in)
+
+    -- "end"
+
+    -- if data_.curve_out_angles.start ~= math.huge and data_.curve_out_angles.finish ~= math.huge then
+    --   local draw_start, draw_finish =
+    --     adjust_arc_start_finish(
+    --     data_.curve_out_angles.start,
+    --     data_.curve_out_angles.finish,
+    --     data_.input.turning_direction_out_ * _direction
+    --   )
+
+    --   love.graphics.arc(
+    --     "line",
+    --     "open",
+    --     sc_x(data_.curve_out_center.x),
+    --     disp_y(sc_y(data_.curve_out_center.y)),
+    --     GFX_SCALE * data_.res_out.curve_radius,
+    --     draw_start,
+    --     draw_finish
+    --   )
+    -- end
+  end
+
+  do_draw()
+  -- _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
 local function draw_curve(data_, colour_)
   -- if data_.segments_length_total == math.huge then
   --   return
@@ -467,8 +526,6 @@ local function draw_curve(data_, colour_)
     -- love.graphics.setColor(colour_debug_thing)
     -- draw_circle(data_.curve_in_center, 3/GFX_SCALE, "fill")
 
-
-
     -- -- curve_out-center
     -- love.graphics.setColor(colour_debug_thing)
     -- draw_circle(data_.curve_out_center, 3/GFX_SCALE, "fill")
@@ -478,8 +535,6 @@ local function draw_curve(data_, colour_)
     -- -- curve_out_out
     -- love.graphics.setColor(colour_debug_thing)
     -- draw_segment(data_.curve_out_out, data_.input.destination_)
-
-
 
     -- -- a_point_on_cic_si_circle
     -- love.graphics.setColor(1, 0, 0)
@@ -504,7 +559,6 @@ local function draw_curve(data_, colour_)
     -- draw_segment(data_.curve_in_center, data_.a_point_on_cic_si_circle)
     -- love.graphics.setColor(1, 0, 0)
     -- draw_segment(data_.tangent_i_p, data_.a_point_on_cic_si_circle)
-
   end
 
   -- love.graphics.setColor(colour_actual_radius)
@@ -551,9 +605,21 @@ function love.draw()
   draw_one(origin, {r = 1, g = 1, b = 0})
   draw_one(destination, {r = 0, g = 0, b = 1})
 
-  local test_new = true
+  local test_what = "straight_left" -- "adatpative_radius" "selective_word"
 
-  if test_new then
+  if test_what == test_what then
+    local colour = {0, 1, 1}
+
+    local check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
+
+    if check_data.res_out then
+      print(check_data.res_out.effective_joint_angle_ratio)
+      draw_straight_curve(check_data, colour)
+      require "pl/pretty".dump(check_data)
+    else
+      print("no match")
+    end
+  elseif test_what == "adatpative_radius" then
     local best_data = nil
     local shortest_length = math.huge
 
@@ -648,7 +714,7 @@ function love.draw()
     --   best_data.input.ratio_out_
     -- )
     end
-  else
+  elseif test_what == "selective_word" then
     -- This part of the "if" is there to test specific parameters of the algorithm.
     local lsl_evaluate = true
     local rsr_evaluate = false

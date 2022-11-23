@@ -161,17 +161,18 @@ end
 -- @param start_ Vector2 of a point on the circle where the angle "starts"; should be on the circle edge.
 -- @param finish_ Vector2 of a point on the circle where the angle "finishes"; should be on the circle edge.
 -- @param dir_ The direction of start_ w.r.t. finish_: 1 for counter-clockwise, -1 for clockwise.
+-- @param epsilon_ The epsilon value when checking for equivalence.
 --
 -- @return angle between the two points, or math.huge if both points are not on the circle edge.
 -- @return the angle where start is, or math.huge if both points are not on the circle edge.
 -- @return the angle where finish is, or math.hug if both points are not on the circle edge.
-function Common.get_arc_data(center_, radius_, start_, finish_, dir_)
+function Common.get_arc_data(center_, radius_, start_, finish_, dir_, epsilon_)
   local normalized_start = start_ - center_
   local start_length = normalized_start:normalize()
   local normalized_finish = finish_ - center_
   local finish_length = normalized_finish:normalize()
 
-  if not Common.equivalent(start_length, radius_) or not Common.equivalent(finish_length, radius_) then
+  if not Common.equivalent(start_length, radius_, epsilon_) or not Common.equivalent(finish_length, radius_, epsilon_) then
     -- print("oops", radius_, start_length, finish_length)
     error("error--oops")
     return math.huge, math.huge, math.huge
@@ -323,6 +324,36 @@ function Common.triangle_anlges_from_side_lengths(side_a_, side_b_, side_c_)
   local C = math.acos((a2 + b2 - c2) / (2 * side_a_ * side_b_))
 
   return {A = A, B = B, C = C}
+end
+
+--[[
+  Check if line_1_ is equivalent to line_2_. Lines not being directed, one may want to also check if they're oriented the
+  same if needed.
+  @param line_1_ a line in the form of {a=.., b=.., c=..}
+  @param line_2_ a line in the form of {a=.., b=.., c=..}
+
+  @retval true if the inputs represent the same line
+  @retval false if the inputs represent different lines
+]]
+function Common.is_same_line(line_1_, line_2_)
+  if Common.equivalent(line_1_.b, 0) and Common.equivalent(line_2_.b, 0) then
+    -- the line is vertical, check if both are on the same x value
+    local x1 = -(line_1_.a / line_1_.b)
+    local x2 = -(line_2_.a / line_2_.b)
+    return Common.equivalent(x1, x2)
+  end
+
+  if Common.equivalent(line_1_.b, 0) or Common.equivalent(line_2_.b, 0) then
+    -- one line is vertical, the other is not
+    return false
+  end
+
+  -- if it's the same line, given the same arbitrary x, both should have the same associated y
+  -- using y = -((a/b)*x) - (c/b), where x = 1
+  local y1 = -((line_1_.a / line_1_.b) * 1) - (line_1_.c / line_1_.b)
+  local y2 = -((line_2_.a / line_2_.b) * 1) - (line_2_.c / line_2_.b)
+
+  return Common.equivalenty(y1, y2)
 end
 
 function Common.get_line_from_point_slope(point_a_, angle_over_2pi_)
