@@ -3,8 +3,6 @@
 local Vector2 = require "Vector2"
 local Common = require "Common"
 
-local SCALE = 1.0
-
 local VehicleData = {
   data = {},
   theoretical_max_angle = 0.785398 -- 45° / 180 * math.pi()
@@ -71,8 +69,8 @@ function VehicleData:new(o)
     local rearBodyPosX__ = 4
     local rearBodyPosY__ = 5
     local rearBodyHeading__ = 6
-    local centerOfRotationX__ = 7
-    local centerOfRotationY__ = 8
+    -- local centerOfRotationX__ = 7
+    -- local centerOfRotationY__ = 8
     local jointAngle__ = 9
 
     local phase = line_content[phase__]
@@ -126,7 +124,8 @@ function VehicleData.get_estimated_values_for_ratio(self_, direction_, entry_spe
 
   local desired_angle = math.min(joint_angle_ratio_ * self_.theoretical_max_angle, effective_maximum_joint_angle)
 
-  -- require "pl/pretty"(entry_maximum_joint_angle, exit_maximum_joint_angle, effective_maximum_joint_angle, desired_angle)
+  -- require "pl/pretty"(entry_maximum_joint_angle, exit_maximum_joint_angle, effective_maximum_joint_angle,
+  -- desired_angle)
 
   -- print("desired_angle", desired_angle)
 
