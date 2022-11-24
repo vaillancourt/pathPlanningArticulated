@@ -35,6 +35,17 @@ local vehicle_data = {}
 local window_width, window_height = 768, 768 -- screenshot sizes: 768, 768
 local scale_start_location = true
 
+local _WHAT_TO_TEST__TEST_NEW = "test-new"
+local _WHAT_TO_TEST__TEST_OLD = "test-old"
+local _WHAT_TO_TEST__STRAIGHT_LEFT = "straight-left"
+local _what_to_test = _WHAT_TO_TEST__TEST_OLD
+
+local _should_recompute_data = true
+local _computed_data = {}
+
+local _direction = Planning.FORWARD
+local _direction_switch_accumulator = 0
+
 local function disp_y(y_)
   return window_height - y_
 end
@@ -66,6 +77,194 @@ function love.load(args)
   destination.image = love.graphics.newImage("assets/truck_destination.png")
 end
 
+local function compute_data()
+  if _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT then
+    _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
+  elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
+    _computed_data = {best_data = {}}
+    local best_data = nil
+    local shortest_length = math.huge
+
+    for i = 0, 10, 1 do
+      local ii = i / 10
+      ii = math.max(0.05, ii)
+
+      for j = 0, 10, 1 do
+        local jj = j / 10
+        jj = math.max(0.05, jj)
+        local new_lsl =
+          Planning.ComputePath(
+          origin,
+          destination,
+          vehicle_data,
+          Planning.START_STOPPED,
+          Planning.LEFT,
+          Planning.LEFT,
+          nil,
+          ii,
+          jj,
+          _direction
+        )
+        local new_rsr =
+          Planning.ComputePath(
+          origin,
+          destination,
+          vehicle_data,
+          Planning.START_STOPPED,
+          Planning.RIGHT,
+          Planning.RIGHT,
+          nil,
+          ii,
+          jj,
+          _direction
+        )
+        local new_rsl =
+          Planning.ComputePath(
+          origin,
+          destination,
+          vehicle_data,
+          Planning.START_STOPPED,
+          Planning.RIGHT,
+          Planning.LEFT,
+          nil,
+          ii,
+          jj,
+          _direction
+        )
+        local new_lsr =
+          Planning.ComputePath(
+          origin,
+          destination,
+          vehicle_data,
+          Planning.START_STOPPED,
+          Planning.LEFT,
+          Planning.RIGHT,
+          nil,
+          ii,
+          jj,
+          _direction
+        )
+
+        if new_lsl.segments_length_total < shortest_length then
+          shortest_length = new_lsl.segments_length_total
+          best_data = new_lsl
+        end
+        if new_rsr.segments_length_total < shortest_length then
+          shortest_length = new_rsr.segments_length_total
+          best_data = new_rsr
+        end
+        if new_rsl.segments_length_total < shortest_length then
+          shortest_length = new_rsl.segments_length_total
+          best_data = new_rsl
+        end
+        if new_lsr.segments_length_total < shortest_length then
+          shortest_length = new_lsr.segments_length_total
+          best_data = new_lsr
+        end
+      end
+    end
+
+    _computed_data.best_data = best_data
+  elseif _what_to_test == _WHAT_TO_TEST__TEST_OLD then
+    -- This part of the "if" is there to test specific parameters of the algorithm.
+    local lsl_evaluate = true
+    local rsr_evaluate = true
+    local rsl_evaluate = true
+    local lsr_evaluate = true
+
+    _computed_data.lsl_data = nil
+    _computed_data.rsr_data = nil
+    _computed_data.rsl_data = nil
+    _computed_data.lsr_data = nil
+
+    -- print("cycle_value", cycle_value)
+    if lsl_evaluate then
+      _computed_data.lsl_data =
+        Planning.ComputePath(
+        origin,
+        destination,
+        vehicle_data,
+        Planning.START_MOVING,
+        Planning.LEFT,
+        Planning.LEFT,
+        nil,
+        1,
+        1,
+        _direction
+      )
+    end
+    if rsr_evaluate then
+      _computed_data.rsr_data =
+        Planning.ComputePath(
+        origin,
+        destination,
+        vehicle_data,
+        Planning.START_MOVING,
+        Planning.RIGHT,
+        Planning.RIGHT,
+        nil,
+        1,
+        1,
+        _direction
+      )
+    end
+    if rsl_evaluate then
+      _computed_data.rsl_data =
+        Planning.ComputePath(
+        origin,
+        destination,
+        vehicle_data,
+        Planning.START_STOPPED,
+        Planning.RIGHT,
+        Planning.LEFT,
+        nil,
+        1,
+        1,
+        _direction
+      )
+    end
+    if lsr_evaluate then
+      _computed_data.lsr_data =
+        Planning.ComputePath(
+        origin,
+        destination,
+        vehicle_data,
+        Planning.START_STOPPED,
+        Planning.LEFT,
+        Planning.RIGHT,
+        nil,
+        1,
+        1,
+        _direction
+      )
+    end
+
+    -- require "pl/pretty".dump(lsl_data)
+
+    local shortest_length = math.huge
+    _computed_data.shortest_word = ""
+
+    if lsl_evaluate and _computed_data.lsl_data.segments_length_total < shortest_length then
+      shortest_length = _computed_data.lsl_data.segments_length_total
+      _computed_data.shortest_word = "lsl"
+    end
+    if rsr_evaluate and _computed_data.rsr_data.segments_length_total < shortest_length then
+      shortest_length = _computed_data.rsr_data.segments_length_total
+      _computed_data.shortest_word = "rsr"
+    end
+    if lsr_evaluate and _computed_data.lsr_data.segments_length_total < shortest_length then
+      shortest_length = _computed_data.lsr_data.segments_length_total
+      _computed_data.shortest_word = "lsr"
+    end
+    if rsl_evaluate and _computed_data.rsl_data.segments_length_total < shortest_length then
+      -- shortest_length = rsl_data.segments_length_total
+      _computed_data.shortest_word = "rsl"
+    end
+
+  --print("shortest_word", shortest_word)
+  end
+end
+
 local function update_keyboard_state()
   if love.keyboard.isDown("i") then
     KeyboardState.selected = "origin"
@@ -82,11 +281,14 @@ local function update_keyboard_state()
   KeyboardState.rotate_ccw = love.keyboard.isDown("up")
 end
 
-local _direction = Planning.FORWARD
-local _direction_switch_accumulator = 0
-
 function love.update(dt_)
+  local previous_vehicle_selected = KeyboardState.selected
+
   update_keyboard_state()
+
+  if previous_vehicle_selected ~= KeyboardState.selected then
+    _should_recompute_data = true
+  end
 
   local updateable
   if KeyboardState.selected == "origin" then
@@ -97,21 +299,27 @@ function love.update(dt_)
 
   if KeyboardState.move_down then
     updateable.position.y = updateable.position.y - 1 / GFX_SCALE
+    _should_recompute_data = true
   end
   if KeyboardState.move_up then
     updateable.position.y = updateable.position.y + 1 / GFX_SCALE
+    _should_recompute_data = true
   end
   if KeyboardState.move_left then
     updateable.position.x = updateable.position.x - 1 / GFX_SCALE
+    _should_recompute_data = true
   end
   if KeyboardState.move_right then
     updateable.position.x = updateable.position.x + 1 / GFX_SCALE
+    _should_recompute_data = true
   end
   if KeyboardState.rotate_cw then
     updateable.orientation = updateable.orientation + (math.pi / 256)
+    _should_recompute_data = true
   end
   if KeyboardState.rotate_ccw then
     updateable.orientation = updateable.orientation - (math.pi / 256)
+    _should_recompute_data = true
   end
 
   updateable.orientation = Common.over_2pi(updateable.orientation)
@@ -128,7 +336,13 @@ function love.update(dt_)
       _direction = Planning.FORWARD
     end
 
+    _should_recompute_data = true
     print("_direction", _direction)
+  end
+
+  if _should_recompute_data then
+    compute_data()
+    _should_recompute_data = false
   end
 end
 
@@ -595,7 +809,9 @@ local function draw_curve(data_, colour_)
   -- draw_label("tangent_i_p", data_.tangent_i_p)
 
   --do_draw()
+  -- luacheck: push ignore _
   _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
+  -- luacheck: pop
 
   love.graphics.setColor(sr, sg, sb, sa)
 end
@@ -605,248 +821,49 @@ function love.draw()
   draw_one(origin, {r = 1, g = 1, b = 0})
   draw_one(destination, {r = 0, g = 0, b = 1})
 
-  local test_what = "straight_left" -- "adatpative_radius" "selective_word"
-
-  if test_what == test_what then
-    local colour = {0, 1, 1}
-
-    local check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
-
-    if check_data.res_out then
-      print(check_data.res_out.effective_joint_angle_ratio)
-      draw_straight_curve(check_data, colour)
-      require "pl/pretty".dump(check_data)
-    else
-      print("no match")
-    end
-  elseif test_what == "adatpative_radius" then
-    local best_data = nil
-    local shortest_length = math.huge
-
-    for i = 0, 10, 1 do
-      local ii = i / 10
-      ii = math.max(0.05, ii)
-
-      for j = 0, 10, 1 do
-        local jj = j / 10
-        jj = math.max(0.05, jj)
-        local new_lsl =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.LEFT,
-          Planning.LEFT,
-          nil,
-          ii,
-          jj,
-          _direction
-        )
-        local new_rsr =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.RIGHT,
-          Planning.RIGHT,
-          nil,
-          ii,
-          jj,
-          _direction
-        )
-        local new_rsl =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.RIGHT,
-          Planning.LEFT,
-          nil,
-          ii,
-          jj,
-          _direction
-        )
-        local new_lsr =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.LEFT,
-          Planning.RIGHT,
-          nil,
-          ii,
-          jj,
-          _direction
-        )
-
-        if new_lsl.segments_length_total < shortest_length then
-          shortest_length = new_lsl.segments_length_total
-          best_data = new_lsl
-        end
-        if new_rsr.segments_length_total < shortest_length then
-          shortest_length = new_rsr.segments_length_total
-          best_data = new_rsr
-        end
-        if new_rsl.segments_length_total < shortest_length then
-          shortest_length = new_rsl.segments_length_total
-          best_data = new_rsl
-        end
-        if new_lsr.segments_length_total < shortest_length then
-          shortest_length = new_lsr.segments_length_total
-          best_data = new_lsr
-        end
+  if _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT then
+    if _computed_data.check_data then
+      local colour = {0, 1, 1}
+      if _computed_data.check_data.res_out then
+        print(_computed_data.check_data.res_out.effective_joint_angle_ratio)
+        draw_straight_curve(_computed_data.check_data, colour)
+        require "pl/pretty".dump(_computed_data.check_data)
+      else
+        print("no match")
       end
     end
-
-    if best_data then
+  elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
+    if _computed_data.best_data then
       local colour = {0, 1, 1}
-      draw_curve(best_data, colour)
-    -- print(
-    --   "shortest_length",
-    --   shortest_length,
-    --   "ratio_in_",
-    --   best_data.input.ratio_in_,
-    --   "ratio_out_",
-    --   best_data.input.ratio_out_
-    -- )
+      draw_curve(_computed_data.best_data, colour)
     end
-  elseif test_what == "selective_word" then
-    -- This part of the "if" is there to test specific parameters of the algorithm.
-    local lsl_evaluate = true
-    local rsr_evaluate = false
-    local rsl_evaluate = false
-    local lsr_evaluate = false
-
-    local lsl_data = nil
-    local rsr_data = nil
-    local rsl_data = nil
-    local lsr_data = nil
-
-    local cycle_value = 0
-    if love.keyboard.isDown("space") then
-      cycle_value = 1
-    elseif love.keyboard.isDown("backspace") then
-      cycle_value = -1
-    end
-    -- print("cycle_value", cycle_value)
-    if lsl_evaluate then
-      lsl_data =
-        Planning.ComputePath(
-        origin,
-        destination,
-        vehicle_data,
-        Planning.START_MOVING,
-        Planning.LEFT,
-        Planning.LEFT,
-        nil,
-        1,
-        1,
-        _direction
-      )
-    end
-    if rsr_evaluate then
-      rsr_data =
-        Planning.ComputePath(
-        origin,
-        destination,
-        vehicle_data,
-        Planning.START_MOVING,
-        Planning.RIGHT,
-        Planning.RIGHT,
-        nil,
-        1,
-        1,
-        _direction
-      )
-    end
-    if rsl_evaluate then
-      rsl_data =
-        Planning.ComputePath(
-        origin,
-        destination,
-        vehicle_data,
-        Planning.START_STOPPED,
-        Planning.RIGHT,
-        Planning.LEFT,
-        nil,
-        1,
-        1,
-        _direction
-      )
-    end
-    if lsr_evaluate then
-      lsr_data =
-        Planning.ComputePath(
-        origin,
-        destination,
-        vehicle_data,
-        Planning.START_STOPPED,
-        Planning.LEFT,
-        Planning.RIGHT,
-        nil,
-        1,
-        1,
-        _direction
-      )
-    end
-
-    -- require "pl/pretty".dump(lsl_data)
+  elseif _what_to_test == _WHAT_TO_TEST__TEST_OLD then
     local lsl_colour = {0, 1, 1}
     local rsr_colour = {1, 0, 0}
     local rsl_colour = {0, 1, 0}
     local lsr_colour = {1, 0, 1}
 
-    rsr_colour = lsl_colour
-    rsl_colour = lsl_colour
-    lsr_colour = lsl_colour
-
-    local shortest_length = math.huge
-    local shortest_word = ""
-
-    if lsl_evaluate and lsl_data.segments_length_total < shortest_length then
-      shortest_length = lsl_data.segments_length_total
-      shortest_word = "lsl"
+    if _computed_data.lsl_data and _computed_data.shortest_word ~= "lsl" then
+      draw_curve(_computed_data.lsl_data, get_dimmed_colour(lsl_colour))
     end
-    if rsr_evaluate and rsr_data.segments_length_total < shortest_length then
-      shortest_length = rsr_data.segments_length_total
-      shortest_word = "rsr"
+    if _computed_data.rsr_data and _computed_data.shortest_word ~= "rsr" then
+      draw_curve(_computed_data.rsr_data, get_dimmed_colour(rsr_colour))
     end
-    if lsr_evaluate and lsr_data.segments_length_total < shortest_length then
-      shortest_length = lsr_data.segments_length_total
-      shortest_word = "lsr"
+    if _computed_data.lsr_data and _computed_data.shortest_word ~= "lsr" then
+      draw_curve(_computed_data.lsr_data, get_dimmed_colour(lsr_colour))
     end
-    if rsl_evaluate and rsl_data.segments_length_total < shortest_length then
-      shortest_length = rsl_data.segments_length_total
-      shortest_word = "rsl"
+    if _computed_data.rsl_data and _computed_data.shortest_word ~= "rsl" then
+      draw_curve(_computed_data.rsl_data, get_dimmed_colour(rsl_colour))
     end
 
-    --print("shortest_word", shortest_word)
-
-    if lsl_evaluate and shortest_word ~= "lsl" then
-      draw_curve(lsl_data, get_dimmed_colour(lsl_colour))
-    end
-    if rsr_evaluate and shortest_word ~= "rsr" then
-      draw_curve(rsr_data, get_dimmed_colour(rsr_colour))
-    end
-    if lsr_evaluate and shortest_word ~= "lsr" then
-      draw_curve(lsr_data, get_dimmed_colour(lsr_colour))
-    end
-    if rsl_evaluate and shortest_word ~= "rsl" then
-      draw_curve(rsl_data, get_dimmed_colour(rsl_colour))
-    end
-
-    if lsl_evaluate and shortest_word == "lsl" then
-      draw_curve(lsl_data, lsl_colour)
-    elseif rsr_evaluate and shortest_word == "rsr" then
-      draw_curve(rsr_data, rsr_colour)
-    elseif lsr_evaluate and shortest_word == "lsr" then
-      draw_curve(lsr_data, lsr_colour)
-    elseif rsl_evaluate and shortest_word == "rsl" then
-      draw_curve(rsl_data, rsl_colour)
+    if _computed_data.lsl_data and _computed_data.shortest_word == "lsl" then
+      draw_curve(_computed_data.lsl_data, lsl_colour)
+    elseif _computed_data.rsr_data and _computed_data.shortest_word == "rsr" then
+      draw_curve(_computed_data.rsr_data, rsr_colour)
+    elseif _computed_data.lsr_data and _computed_data.shortest_word == "lsr" then
+      draw_curve(_computed_data.lsr_data, lsr_colour)
+    elseif _computed_data.rsl_data and _computed_data.shortest_word == "rsl" then
+      draw_curve(_computed_data.rsl_data, rsl_colour)
     end
   end
 end

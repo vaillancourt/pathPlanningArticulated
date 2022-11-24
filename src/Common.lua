@@ -129,7 +129,7 @@ end
   @param direction_ "CCW" if start_ and finish_ should be considered in the counter-clockwise direction, or "CW"
         if the angles are in the clockwise direction.
 
-  @return the distance between the angles, or 0 if direction_ is not "CW" or "CCW". 
+  @return the distance between the angles, or 0 if direction_ is not "CW" or "CCW".
 ]]
 function Common.angle_distance(start_, finish_, direction_)
   if direction_ == "CCW" then
