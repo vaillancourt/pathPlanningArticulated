@@ -38,13 +38,14 @@ local scale_start_location = true
 local _WHAT_TO_TEST__TEST_NEW = "test-new"
 local _WHAT_TO_TEST__TEST_OLD = "test-old"
 local _WHAT_TO_TEST__STRAIGHT_LEFT = "straight-left"
-local _what_to_test = _WHAT_TO_TEST__TEST_OLD
+local _what_to_test = _WHAT_TO_TEST__STRAIGHT_LEFT
 
 local _should_recompute_data = true
-local _computed_data = {}
+local _computed_data = {is_freshly_computed = true}
+local _run_timer = 0.0
 
 local _direction = Planning.FORWARD
-local _direction_switch_accumulator = 0
+local _direction_switch_accumulator = -math.huge
 
 local function disp_y(y_)
   return window_height - y_
@@ -78,6 +79,8 @@ function love.load(args)
 end
 
 local function compute_data()
+  _computed_data.is_freshly_computed = true
+
   if _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT then
     _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
@@ -100,7 +103,6 @@ local function compute_data()
           Planning.START_STOPPED,
           Planning.LEFT,
           Planning.LEFT,
-          nil,
           ii,
           jj,
           _direction
@@ -113,7 +115,6 @@ local function compute_data()
           Planning.START_STOPPED,
           Planning.RIGHT,
           Planning.RIGHT,
-          nil,
           ii,
           jj,
           _direction
@@ -126,7 +127,6 @@ local function compute_data()
           Planning.START_STOPPED,
           Planning.RIGHT,
           Planning.LEFT,
-          nil,
           ii,
           jj,
           _direction
@@ -139,7 +139,6 @@ local function compute_data()
           Planning.START_STOPPED,
           Planning.LEFT,
           Planning.RIGHT,
-          nil,
           ii,
           jj,
           _direction
@@ -282,6 +281,8 @@ local function update_keyboard_state()
 end
 
 function love.update(dt_)
+  _run_timer = _run_timer + dt_
+
   local previous_vehicle_selected = KeyboardState.selected
 
   update_keyboard_state()
@@ -343,6 +344,8 @@ function love.update(dt_)
   if _should_recompute_data then
     compute_data()
     _should_recompute_data = false
+  else
+    _computed_data.is_freshly_computed = false
   end
 end
 
@@ -544,26 +547,71 @@ local function draw_straight_curve(data_, colour_)
 
   local alt_colour = {colour_[1] * 0.5, colour_[2] * 0.5, colour_[3] * 0.5}
 
-  local do_draw = function()
+  if not _start_time then
+    _start_time = 0
+  end
+
+  if _computed_data.is_freshly_computed then
+    _start_time = _run_timer
+  end
+
+  local time_since_timer_start = _run_timer - _start_time
+  time_since_timer_start = math.floor(time_since_timer_start)
+
+  local test_run_to_display_index = 1 + time_since_timer_start % #data_.test_runs
+
+  --print("#data_.test_runs", #data_.test_runs, "test_run_to_display_index", test_run_to_display_index)
+
+  local test_run_to_display = data_.test_runs[test_run_to_display_index]
+
+  --require "pl/pretty".dump(test_run_to_display)
+
+  local do_draw_test_run = function(test_run_)
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.print("test:run #" .. test_run_to_display_index, 0, 0)
     love.graphics.setColor(0.85, 0.85, 0.85)
     draw_line(data_.input.line_origin)
+    -- current_run.curve_out_out
+    -- current_run.curve_out_center
+    -- current_run.tentative_curve_out_in
+    -- current_run.tentative_straight_out
 
-    draw_segment(data_.curve_out_center, data_.straight_out.position)
-    draw_segment(data_.curve_out_center, data_.curve_out_in.position)
+    love.graphics.setColor(1, 0, 0)
+    draw_circle(test_run_.curve_out_center, 3 / GFX_SCALE, "fill")
+
+    love.graphics.setColor(alt_colour)
+    draw_segment(data_.input.destination_.position, test_run_.curve_out_out.position)
+    love.graphics.setColor(alt_colour)
+    draw_segment(test_run_.tentative_curve_out_in.position, test_run_.tentative_straight_out.position)
+
+    draw_gizmo(test_run_.tentative_straight_out)
+  end
+
+  local do_draw = function()
+    -- draw_segment(data_.curve_out_center, data_.straight_out.position)
+    -- draw_segment(data_.curve_out_center, data_.curve_out_in.position)
 
     -- curve_out lines
-    -- love.graphics.setColor(alt_colour)
-    -- draw_segment(data_.input.destination_.position, data_.curve_out_out.position)
+    love.graphics.setColor(alt_colour)
+    if data_.curve_out_out then
+      draw_segment(data_.input.destination_.position, data_.curve_out_out.position)
+    end
 
-    -- love.graphics.setColor(alt_colour)
-    -- draw_segment(data_.curve_out_in.position, data_.straight_out.position)
+    love.graphics.setColor(alt_colour)
+    if data_.curve_out_in and data_.straight_out then
+      draw_segment(data_.curve_out_in.position, data_.straight_out.position)
+    end
 
     -- -- straight
-    -- love.graphics.setColor(colour_)
-    -- draw_segment(data_.input.origin_.position, data_.straight_out.position)
+    love.graphics.setColor(colour_)
+    if data_.straight_out then
+      draw_segment(data_.input.origin_.position, data_.straight_out.position)
+    end
 
-    -- love.graphics.setColor(1, 0, 0)
-    -- draw_circle(data_.curve_out_center, 3 / GFX_SCALE, "fill")
+    love.graphics.setColor(1, 0, 0)
+    if data_.curve_out_center then
+      draw_circle(data_.curve_out_center, 3 / GFX_SCALE, "fill")
+    end
     -- love.graphics.setColor(0, 1, 0)
     -- --draw_circle(data_.curve_out_in_center, 3 / GFX_SCALE, "fill")
 
@@ -572,26 +620,29 @@ local function draw_straight_curve(data_, colour_)
 
     -- "end"
 
-    -- if data_.curve_out_angles.start ~= math.huge and data_.curve_out_angles.finish ~= math.huge then
-    --   local draw_start, draw_finish =
-    --     adjust_arc_start_finish(
-    --     data_.curve_out_angles.start,
-    --     data_.curve_out_angles.finish,
-    --     data_.input.turning_direction_out_ * _direction
-    --   )
+    if data_.curve_out_angles and data_.curve_out_center then
+      if data_.curve_out_angles.start ~= math.huge and data_.curve_out_angles.finish ~= math.huge then
+        local draw_start, draw_finish =
+          adjust_arc_start_finish(
+          data_.curve_out_angles.start,
+          data_.curve_out_angles.finish,
+          data_.input.turning_direction_out_ * _direction
+        )
 
-    --   love.graphics.arc(
-    --     "line",
-    --     "open",
-    --     sc_x(data_.curve_out_center.x),
-    --     disp_y(sc_y(data_.curve_out_center.y)),
-    --     GFX_SCALE * data_.res_out.curve_radius,
-    --     draw_start,
-    --     draw_finish
-    --   )
-    -- end
+        love.graphics.arc(
+          "line",
+          "open",
+          sc_x(data_.curve_out_center.x),
+          disp_y(sc_y(data_.curve_out_center.y)),
+          GFX_SCALE * data_.res_out.curve_radius,
+          draw_start,
+          draw_finish
+        )
+      end
+    end
   end
 
+  --do_draw_test_run(test_run_to_display)
   do_draw()
   -- _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
 
@@ -824,13 +875,7 @@ function love.draw()
   if _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT then
     if _computed_data.check_data then
       local colour = {0, 1, 1}
-      if _computed_data.check_data.res_out then
-        print(_computed_data.check_data.res_out.effective_joint_angle_ratio)
-        draw_straight_curve(_computed_data.check_data, colour)
-        require "pl/pretty".dump(_computed_data.check_data)
-      else
-        print("no match")
-      end
+      draw_straight_curve(_computed_data.check_data, colour)
     end
   elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
     if _computed_data.best_data then

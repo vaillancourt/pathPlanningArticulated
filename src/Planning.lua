@@ -51,9 +51,7 @@ function Planning.Straight(origin_, destination_)
   return is_same_line and Common.equivalent(origin_.orientation, destination_.orientation)
 end
 
-function Planning.Straight_Curve(origin_, destination_, vehicle_data_, -- start_state_,
-  turning_direction_out_, -- cycle_,
-  direction_)
+function Planning.Straight_Curve(origin_, destination_, vehicle_data_, turning_direction_out_, direction_)
   local line_origin = Common.get_line_from_point_slope(origin_.position, origin_.orientation)
   local td_o = turning_direction_out_
 
@@ -76,15 +74,22 @@ function Planning.Straight_Curve(origin_, destination_, vehicle_data_, -- start_
       direction_ = direction_,
       line_origin = line_origin
     },
-    test_count = 0
+    test_count = 0,
+    test_runs = {},
+    segments_length_total = math.huge
   }
 
   while not found do
     return_dict.test_count = return_dict.test_count + 1
+    local current_run = {}
     local current_ratio_test = lower_bound + (upper_bound - lower_bound) / 2.0
-    -- print("current_ratio_test", current_ratio_test)
+    current_run.current_ratio_test = current_ratio_test
+
     if Common.equivalent(current_ratio_test, 0.0) or Common.equivalent(current_ratio_test, 1.0) then
-      -- These should be tested on their own, not doing this check here results in an infinite loop.
+      -- These should be tested on their own, not doing this check here results in an infinite loop. The rationale here
+      -- is that it will either make it or break it: if the ratio does not give the results, the function will return
+      -- without providing valid results and the receiving end will conclude "no path"; if this value is the right one,
+      -- then the function will return valid data and everyone will be happy.😊
       found = true
     end
 
@@ -93,12 +98,11 @@ function Planning.Straight_Curve(origin_, destination_, vehicle_data_, -- start_
     --   curve_radius = CR, --(estimated_radius_for_entry + estimated_radius_for_exit) / 2,
     --   curve_entry_location = curve_entry_location,
     --   curve_exit_location = curve_exit_location,
-    --   -- curve_entry_rotation_center = curve_entry_rotation_center,
-    --   -- curve_exit_rotation_center = curve_exit_rotation_center,
     --   estimated_radius_for_entry = estimated_radius_for_entry,
     --   estimated_radius_for_exit = estimated_radius_for_exit
     -- }
     local res_out = vehicle_data_:get_estimated_values_for_ratio(dir_as_text, "MOVING", current_ratio_test)
+    current_run.res_out = res_out
 
     local curve_out_radius = res_out.curve_radius
     local curve_out_offset_exit = res_out.curve_exit_location
@@ -107,11 +111,12 @@ function Planning.Straight_Curve(origin_, destination_, vehicle_data_, -- start_
       position = Vector2(curve_out_offset_exit.position.x, curve_out_offset_exit.position.y * td_o),
       orientation = curve_out_offset_exit.orientation * td_o
     }
+    current_run.coo_co = coo_co
 
     -- Find where the vehicle exits the last curve
     -- coo
     local curve_out_out = Planning.transform_back(destination_, coo_co)
-    -- return_dict.curve_out_out = curve_out_out
+    current_run.curve_out_out = curve_out_out
 
     -- Find where the center of rotation before exiting the last curve
     local curve_out_out_side =
@@ -119,6 +124,7 @@ function Planning.Straight_Curve(origin_, destination_, vehicle_data_, -- start_
 
     -- coc
     local curve_out_center = curve_out_out.position + (curve_out_out_side * curve_out_radius)
+    current_run.curve_out_center = curve_out_center
 
     local curve_out_offset_enter = res_out.curve_entry_location
 
@@ -126,187 +132,109 @@ function Planning.Straight_Curve(origin_, destination_, vehicle_data_, -- start_
       position = Vector2(curve_out_offset_enter.position.x, curve_out_offset_enter.position.y * td_o),
       orientation = curve_out_offset_enter.orientation * td_o
     }
+    current_run.so_coi = so_coi
 
     local pseudo_straight_out = Planning.transform_back(curve_out_out, so_coi)
+    current_run.pseudo_straight_out = pseudo_straight_out
 
     local diff_angle = origin_.orientation - pseudo_straight_out.orientation
+    current_run.diff_angle = diff_angle
 
     local tentative_curve_out_in = {
       position = curve_out_out.position:rotate_about_point_copy(curve_out_center, diff_angle),
       orientation = curve_out_out.orientation + diff_angle
     }
+    current_run.tentative_curve_out_in = tentative_curve_out_in
 
     local tentative_straight_out = {
       position = pseudo_straight_out.position:rotate_about_point_copy(curve_out_center, diff_angle),
       orientation = pseudo_straight_out.orientation + diff_angle
     }
+    current_run.tentative_straight_out = tentative_straight_out
 
     local MARGIN_OF_ERROR = 0.00001
 
     local distance_to_line, point_on_line = Common.get_distance_line_point(line_origin, tentative_straight_out.position)
+    current_run.distance_to_line = distance_to_line
 
     if Common.equivalent(distance_to_line, 0.0) then
-      -- if not status2 then
-      --   print(
-      --     "oops2",
-      --     "td_i",
-      --     td_i,
-      --     "td_o",
-      --     td_o,
-      --     "ratio_in_",
-      --     ratio_in_,
-      --     "ratio_out_",
-      --     ratio_out_,
-      --     "direction_",
-      --     direction_
-      --   )
-      -- end
-      -- return_dict.curve_out_angles = {start = destination_angle_in, finish = destination_angle_out}
       -- we get a match
       found = true
 
-      -- require "pl/pretty".dump(res_out)
-      -- print(
-      --   "pseudo_curve_out_in_to_center_length", pseudo_curve_out_in_to_center_length,
-      --   "distance_to_line", distance_to_line,
-      --   "expected_distance", expected_distance
-      -- )
+      local is_in_front = function()
+        -- Move the tentative_straight_out in local frame of the vehicle origin_
+        local local_straight_out = tentative_straight_out.position - origin_.position
+        local_straight_out:rotate(-origin_.orientation)
+        -- check if in front
+        return local_straight_out.x > 0.0
+      end
 
-      return_dict.res_out = res_out
-      return_dict.coo_co = coo_co
-      return_dict.curve_out_out = curve_out_out
-      return_dict.curve_out_center = curve_out_center
+      if is_in_front() then
+        -- We do further calculations if it is in front; if those values are not supplied, the receiving end will assume
+        -- "no path".
+        return_dict.res_out = res_out
+        return_dict.coo_co = coo_co
+        return_dict.curve_out_out = curve_out_out
+        return_dict.curve_out_center = curve_out_center
 
-      -- local straight_out = {
-      --   position = point_on_line,
-      --   orientation = origin_.orientation
-      -- }
-      return_dict.straight_out = tentative_straight_out --straight_out
+        return_dict.straight_out = tentative_straight_out
 
-      local curve_out_in = tentative_curve_out_in --Planning.transform_local_to_world(straight_out, so_coi)
-      return_dict.curve_out_in = curve_out_in
-      -- local curve_out_in_side = Vector2(1, 0):rotate_copy(Common.over_2pi(curve_out_in.orientation + td_o * (math.pi / 2)))
-      -- local curve_out_in_center = curve_out_in.position + (curve_out_in_side * expected_distance)
-      -- return_dict.curve_out_in_center = curve_out_in_center
+        local curve_out_in = tentative_curve_out_in --Planning.transform_local_to_world(straight_out, so_coi)
+        return_dict.curve_out_in = curve_out_in
 
-      local status2, segment_3_length, destination_angle_in, destination_angle_out =
-        pcall(
-        Common.get_arc_data,
-        curve_out_center,
-        curve_out_radius,
-        curve_out_in.position,
-        curve_out_out.position,
-        direction_ * td_o,
-        MARGIN_OF_ERROR * 100
-      )
+        local status2, segment_3_length, destination_angle_in, destination_angle_out =
+          pcall(
+          Common.get_arc_data,
+          curve_out_center,
+          curve_out_radius,
+          curve_out_in.position,
+          curve_out_out.position,
+          direction_ * td_o,
+          MARGIN_OF_ERROR * 100
+        )
+
+        if status2 then
+          return_dict.curve_out_angles = {start = destination_angle_in, finish = destination_angle_out}
+
+          local straigth_length = (tentative_straight_out.position - origin_.position):length()
+          return_dict.segments_lengths = {
+            straigth_length,
+            segment_3_length
+          }
+
+          return_dict.segments_length_total =
+            straigth_length + so_coi.position:length() + segment_3_length + coo_co.position:length()
+        end
+      end
     else
       -- check wheter we've overshot or we've undershot
 
       local distance_to_point_on_line = (point_on_line - curve_out_center):length()
       local distantce_to_point = (tentative_straight_out.position - curve_out_center):length()
 
-      if distantce_to_point < distance_to_point_on_line then
+      current_run.distance_to_point_on_line = distance_to_point_on_line
+      current_run.distantce_to_point = distantce_to_point
+
+      if distantce_to_point > distance_to_point_on_line then
         -- we're too far away
         -- this means that the chosen ratio was too small
         lower_bound = current_ratio_test
-      else -- distantce_to_point > distance_to_point_on_line then
+      else -- distantce_to_point < distance_to_point_on_line then
         -- we overshot
         -- this means that the chosen ratio was too big
         upper_bound = current_ratio_test
       end
     end
+
+    table.insert(return_dict.test_runs, current_run)
   end
 
-  print("test_count", return_dict.test_count)
   return return_dict
-
-  -- local pseudo_curve_out_in_to_center_length = (pseudo_curve_out_in.position - curve_out_center):length()
-
-  -- -- print("pseudo_curve_out_in_to_center_length", pseudo_curve_out_in_to_center_length)
-
-  -- local curve_out_in_center_offset = so_coi.position + Vector2(0, res_out.curve_radius):rotate_copy(so_coi.orientation)
-
-  -- local distance_to_line, point_on_line = Common.get_distance_line_point(line_origin, curve_out_center)
-  -- local expected_distance = curve_out_in_center_offset:length()
-
-  -- -- print("pseudo_curve_out_in_to_center_length - expected_distance", pseudo_curve_out_in_to_center_length - expected_distance)
-
-  --    local MARGIN_OF_ERROR = 0.00001
-  --
-  --    if Common.equivalent(distance_to_line, expected_distance) then
-  --      -- we get a match
-  --      found = true
-  --
-  --      require "pl/pretty".dump(res_out)
-  --      print(
-  --        "pseudo_curve_out_in_to_center_length", pseudo_curve_out_in_to_center_length,
-  --        "distance_to_line", distance_to_line,
-  --        "expected_distance", expected_distance
-  --      )
-  --
-  --      return_dict.res_out = res_out
-  --      return_dict.coo_co = coo_co
-  --      return_dict.curve_out_out = curve_out_out
-  --      return_dict.curve_out_center = curve_out_center
-  --
-  --      local straight_out = {
-  --        position = point_on_line,
-  --        orientation = origin_.orientation
-  --      }
-  --      return_dict.straight_out = straight_out
-  --
-  --      local curve_out_in = Planning.transform_local_to_world(straight_out, so_coi)
-  --      return_dict.curve_out_in = curve_out_in
-  --      local curve_out_in_side = Vector2(1, 0):rotate_copy(Common.over_2pi(curve_out_in.orientation + td_o * (math.pi / 2)))
-  --      local curve_out_in_center = curve_out_in.position + (curve_out_in_side * expected_distance)
-  --      return_dict.curve_out_in_center = curve_out_in_center
-  --
-  --
-  --
-  --      local status2, segment_3_length, destination_angle_in, destination_angle_out =
-  --        pcall(
-  --        Common.get_arc_data,
-  --        curve_out_center,
-  --        curve_out_radius,
-  --        curve_out_in.position,
-  --        curve_out_out.position,
-  --        direction_ * td_o,
-  --        MARGIN_OF_ERROR * 100
-  --      )
-  --      -- if not status2 then
-  --      --   print(
-  --      --     "oops2",
-  --      --     "td_i",
-  --      --     td_i,
-  --      --     "td_o",
-  --      --     td_o,
-  --      --     "ratio_in_",
-  --      --     ratio_in_,
-  --      --     "ratio_out_",
-  --      --     ratio_out_,
-  --      --     "direction_",
-  --      --     direction_
-  --      --   )
-  --      -- end
-  --
-  --    -- return_dict.curve_out_angles = {start = destination_angle_in, finish = destination_angle_out}
-  --
-  --    elseif distance_to_line < expected_distance then
-  --      -- this means that the chosen ratio was too small
-  --      lower_bound = current_ratio_test
-  --    else -- if distance_to_line > matching_distance
-  --      -- this means that the chosen ratio was too big
-  --      upper_bound = current_ratio_test
-  --    end
-  --  end
-  --
-  --  print("test_count", return_dict.test_count)
-  --  return return_dict
 end
 
 --[[
-A generic approach to planning path. The four "words" (LSL, RSR, LSR and RSL) use the same approach,
-with the minor differences in the signs.
+Test the "words" Curve-Straight-Curve: LSL, RSR, LSR and RSL; they all use a similar approach, with the minor differences
+in the signs.
 ]]
 function Planning.ComputePath(
   origin_,
@@ -315,11 +243,9 @@ function Planning.ComputePath(
   start_state_,
   turning_direction_in_,
   turning_direction_out_,
-  cycle_,
   ratio_in_,
   ratio_out_,
   direction_)
-  cycle_ = cycle_ or 0
   local ratio_in = ratio_in_ or -1
   local ratio_out = ratio_out_ or -1
   local td_i = turning_direction_in_
