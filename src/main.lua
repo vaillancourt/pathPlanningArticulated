@@ -38,14 +38,15 @@ local scale_start_location = true
 local _WHAT_TO_TEST__TEST_NEW = "test-new"
 local _WHAT_TO_TEST__TEST_OLD = "test-old"
 local _WHAT_TO_TEST__STRAIGHT_LEFT = "straight-left"
-local _what_to_test = _WHAT_TO_TEST__STRAIGHT_LEFT
+local _WHAT_TO_TEST__STRAIGHT_RIGHT = "straight-right"
+local _what_to_test = _WHAT_TO_TEST__STRAIGHT_RIGHT
 
 local _should_recompute_data = true
 local _computed_data = {is_freshly_computed = true}
 local _run_timer = 0.0
 
 local _direction = Planning.FORWARD
-local _direction_switch_accumulator = -math.huge
+local _direction_switch_accumulator = 0
 
 local function disp_y(y_)
   return window_height - y_
@@ -83,6 +84,8 @@ local function compute_data()
 
   if _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT then
     _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
+  elseif _what_to_test == _WHAT_TO_TEST__STRAIGHT_RIGHT then
+    _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.RIGHT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
     _computed_data = {best_data = {}}
     local best_data = nil
@@ -872,7 +875,7 @@ function love.draw()
   draw_one(origin, {r = 1, g = 1, b = 0})
   draw_one(destination, {r = 0, g = 0, b = 1})
 
-  if _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT then
+  if _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT or _what_to_test == _WHAT_TO_TEST__STRAIGHT_RIGHT then
     if _computed_data.check_data then
       local colour = {0, 1, 1}
       draw_straight_curve(_computed_data.check_data, colour)

@@ -54,17 +54,20 @@ end
 function Planning.Straight_Curve(origin_, destination_, vehicle_data_, turning_direction_out_, direction_)
   local line_origin = Common.get_line_from_point_slope(origin_.position, origin_.orientation)
   local td_o = turning_direction_out_
-
-  local found = false
-
-  local lower_bound = 0.0
-  local upper_bound = 1.0
-
   local dir_as_text = "FORWARD"
 
   if direction_ == Planning.REVERSE then
     dir_as_text = "REVERSE"
   end
+
+  assert(td_o == Planning.LEFT or td_o == Planning.RIGHT, "invalid direction")
+
+  local found = false
+
+  local min_ratio = vehicle_data_:get_estimated_values_for_ratio(dir_as_text, "MOVING", 0.0).effective_joint_angle_ratio
+  local max_ratio = vehicle_data_:get_estimated_values_for_ratio(dir_as_text, "MOVING", 1.0).effective_joint_angle_ratio
+  local lower_bound = min_ratio
+  local upper_bound = max_ratio
 
   local return_dict = {
     input = {
@@ -81,11 +84,24 @@ function Planning.Straight_Curve(origin_, destination_, vehicle_data_, turning_d
 
   while not found do
     return_dict.test_count = return_dict.test_count + 1
+    -- print("loop", return_dict.test_count)
+
+    if return_dict.test_count > 100 then
+      -- Something is wrong, it shouldn't take that many tries.
+      assert(false)
+    end
+
+    local should_report = false --return_dict.test_count > 50
+
     local current_run = {}
     local current_ratio_test = lower_bound + (upper_bound - lower_bound) / 2.0
     current_run.current_ratio_test = current_ratio_test
+    current_run.lower_bound = lower_bound
+    current_run.upper_bound = upper_bound
+    current_run.min_ratio = min_ratio
+    current_run.max_ratio = max_ratio
 
-    if Common.equivalent(current_ratio_test, 0.0) or Common.equivalent(current_ratio_test, 1.0) then
+    if Common.equivalent(current_ratio_test, min_ratio) or Common.equivalent(current_ratio_test, max_ratio) then
       -- These should be tested on their own, not doing this check here results in an infinite loop. The rationale here
       -- is that it will either make it or break it: if the ratio does not give the results, the function will return
       -- without providing valid results and the receiving end will conclude "no path"; if this value is the right one,
@@ -166,7 +182,11 @@ function Planning.Straight_Curve(origin_, destination_, vehicle_data_, turning_d
         local local_straight_out = tentative_straight_out.position - origin_.position
         local_straight_out:rotate(-origin_.orientation)
         -- check if in front
-        return local_straight_out.x > 0.0
+        if direction_ == Planning.REVERSE then
+          return local_straight_out.x < 0.0
+        else
+          return local_straight_out.x > 0.0
+        end
       end
 
       if is_in_front() then
@@ -210,20 +230,27 @@ function Planning.Straight_Curve(origin_, destination_, vehicle_data_, turning_d
       -- check wheter we've overshot or we've undershot
 
       local distance_to_point_on_line = (point_on_line - curve_out_center):length()
-      local distantce_to_point = (tentative_straight_out.position - curve_out_center):length()
+      local distance_to_point = (tentative_straight_out.position - curve_out_center):length()
 
       current_run.distance_to_point_on_line = distance_to_point_on_line
-      current_run.distantce_to_point = distantce_to_point
+      current_run.distance_to_point = distance_to_point
 
-      if distantce_to_point > distance_to_point_on_line then
+      if Common.equivalent(distance_to_point_on_line, distance_to_point) then
+        -- we've explored all the space we had, no path.
+        found = true
+      elseif distance_to_point > distance_to_point_on_line then
         -- we're too far away
         -- this means that the chosen ratio was too small
         lower_bound = current_ratio_test
-      else -- distantce_to_point < distance_to_point_on_line then
+      else -- distance_to_point < distance_to_point_on_line then
         -- we overshot
         -- this means that the chosen ratio was too big
         upper_bound = current_ratio_test
       end
+    end
+
+    if should_report then
+      require "pl/pretty".dump(current_run)
     end
 
     table.insert(return_dict.test_runs, current_run)
