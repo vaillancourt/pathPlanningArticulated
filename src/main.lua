@@ -8,7 +8,7 @@ local Vector2 = require "Vector2"
 
 --local test = require "test"
 
-io.stdout:setvbuf("no") -- This makes is so that print() statements print right away.
+io.stdout:setvbuf("no") -- This makes it so that print() statements print right away.
 
 local SCALE = 20.0
 local GFX_SCALE = 20 -- screenshot scale: 20
@@ -37,11 +37,24 @@ local scale_start_location = true
 
 local _WHAT_TO_TEST__TEST_NEW = "test-new"
 local _WHAT_TO_TEST__TEST_OLD = "test-old"
-local _what_to_test = _WHAT_TO_TEST__TEST_NEW
+local _WHAT_TO_TEST__STRAIGHT = "test-straight"
+local _WHAT_TO_TEST__STRAIGHT_LEFT = "straight-left"
+local _WHAT_TO_TEST__STRAIGHT_RIGHT = "straight-right"
+local _WHAT_TO_TEST__LEFT_STRAIGHT = "left-straight"
+local _WHAT_TO_TEST__RIGHT_STRAIGHT = "right-straight"
+local _WHAT_TO_TEST__ALL = "test-all"
+local _what_to_test = _WHAT_TO_TEST__ALL
 
 local _should_recompute_data = true
-local _computed_data = {}
+local _computed_data = {is_freshly_computed = true}
+local _run_timer = 0.0
 
+-- About those two lines:
+-- if _direction_switch_accumulator is set to 0, the direction will alternate between forward and reverse;
+-- if _direction_switch_accumulator is set to -math.huge, the direction will be stuck at what is set to _direction.
+--
+-- So if one wants to test a specific direction, then setting _direction_switch_accumulator to -math.huge and _direction
+-- to the desired direction is the way to go.
 local _direction = Planning.FORWARD
 local _direction_switch_accumulator = 0
 
@@ -77,91 +90,22 @@ function love.load(args)
 end
 
 local function compute_data()
-  if _what_to_test == _WHAT_TO_TEST__TEST_NEW then
-    _computed_data = {best_data = {}}
-    local best_data = nil
-    local shortest_length = math.huge
+  _computed_data.is_freshly_computed = true
 
-    for i = 0, 10, 1 do
-      local ii = i / 10
-      ii = math.max(0.05, ii)
-
-      for j = 0, 10, 1 do
-        local jj = j / 10
-        jj = math.max(0.05, jj)
-        local new_lsl =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.LEFT,
-          Planning.LEFT,
-          nil,
-          ii,
-          jj,
-          _direction
-        )
-        local new_rsr =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.RIGHT,
-          Planning.RIGHT,
-          nil,
-          ii,
-          jj,
-          _direction
-        )
-        local new_rsl =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.RIGHT,
-          Planning.LEFT,
-          nil,
-          ii,
-          jj,
-          _direction
-        )
-        local new_lsr =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.LEFT,
-          Planning.RIGHT,
-          nil,
-          ii,
-          jj,
-          _direction
-        )
-
-        if new_lsl.segments_length_total < shortest_length then
-          shortest_length = new_lsl.segments_length_total
-          best_data = new_lsl
-        end
-        if new_rsr.segments_length_total < shortest_length then
-          shortest_length = new_rsr.segments_length_total
-          best_data = new_rsr
-        end
-        if new_rsl.segments_length_total < shortest_length then
-          shortest_length = new_rsl.segments_length_total
-          best_data = new_rsl
-        end
-        if new_lsr.segments_length_total < shortest_length then
-          shortest_length = new_lsr.segments_length_total
-          best_data = new_lsr
-        end
-      end
-    end
-
-    _computed_data.best_data = best_data
+  if _what_to_test == _WHAT_TO_TEST__STRAIGHT then
+    _computed_data.check_data = Planning.Straight(origin, destination)
+  elseif _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT then
+    _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
+  elseif _what_to_test == _WHAT_TO_TEST__STRAIGHT_RIGHT then
+    _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.RIGHT, _direction)
+  elseif _what_to_test == _WHAT_TO_TEST__LEFT_STRAIGHT then
+    _computed_data.check_data =
+      Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.LEFT, _direction)
+  elseif _what_to_test == _WHAT_TO_TEST__RIGHT_STRAIGHT then
+    _computed_data.check_data =
+      Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.RIGHT, _direction)
+  elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
+    _computed_data.best_data = Planning.Curve_Straight_Curve(origin, destination, vehicle_data, "MOVING", _direction)
   elseif _what_to_test == _WHAT_TO_TEST__TEST_OLD then
     -- This part of the "if" is there to test specific parameters of the algorithm.
     local lsl_evaluate = true
@@ -257,8 +201,46 @@ local function compute_data()
       -- shortest_length = rsl_data.segments_length_total
       _computed_data.shortest_word = "rsl"
     end
+  elseif _what_to_test == _WHAT_TO_TEST__ALL then
+    _computed_data.best_straight = Planning.Straight(origin, destination)
+    _computed_data.best_straight_left =
+      Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
+    _computed_data.best_straight_right =
+      Planning.Straight_Curve(origin, destination, vehicle_data, Planning.RIGHT, _direction)
+    _computed_data.best_left_straight =
+      Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.LEFT, _direction)
+    _computed_data.best_right_straight =
+      Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.RIGHT, _direction)
+    _computed_data.best_curve_straight_curve =
+      Planning.Curve_Straight_Curve(origin, destination, vehicle_data, "MOVING", _direction)
 
-  --print("shortest_word", shortest_word)
+    _computed_data.shortest_path = math.huge
+    _computed_data.best_word = ""
+
+    if _computed_data.best_straight.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_straight.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__STRAIGHT
+    end
+    if _computed_data.best_straight_left.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_straight_left.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__STRAIGHT_LEFT
+    end
+    if _computed_data.best_straight_right.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_straight_right.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__STRAIGHT_RIGHT
+    end
+    if _computed_data.best_left_straight.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_left_straight.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__LEFT_STRAIGHT
+    end
+    if _computed_data.best_right_straight.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_right_straight.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__RIGHT_STRAIGHT
+    end
+    if _computed_data.best_curve_straight_curve.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_curve_straight_curve.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__TEST_NEW
+    end
   end
 end
 
@@ -279,6 +261,8 @@ local function update_keyboard_state()
 end
 
 function love.update(dt_)
+  _run_timer = _run_timer + dt_
+
   local previous_vehicle_selected = KeyboardState.selected
 
   update_keyboard_state()
@@ -340,6 +324,8 @@ function love.update(dt_)
   if _should_recompute_data then
     compute_data()
     _should_recompute_data = false
+  else
+    _computed_data.is_freshly_computed = false
   end
 end
 
@@ -536,6 +522,238 @@ local function draw_label(text_, position_)
   love.graphics.setColor(sr, sg, sb, sa)
 end
 
+local function draw_straight(data_, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+  if data_.segments_length_total ~= math.huge then
+    love.graphics.setColor(colour_)
+    draw_segment(data_.input.destination_.position, data_.input.origin_.position)
+
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total) .. "\nS", 5, 5)
+  end
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
+local function draw_straight_curve(data_, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  local alt_colour = {colour_[1] * 0.5, colour_[2] * 0.5, colour_[3] * 0.5}
+
+  if not _G._start_time then
+    _G._start_time = 0
+  end
+
+  if _computed_data.is_freshly_computed then
+    _G._start_time = _run_timer
+  end
+
+  local time_since_timer_start = _run_timer - _G._start_time
+  time_since_timer_start = math.floor(time_since_timer_start)
+
+  local test_run_to_display_index = 1 + time_since_timer_start % #data_.test_runs
+
+  --print("#data_.test_runs", #data_.test_runs, "test_run_to_display_index", test_run_to_display_index)
+
+  local test_run_to_display = data_.test_runs[test_run_to_display_index]
+
+  --require "pl/pretty".dump(test_run_to_display)
+
+  local do_draw_test_run = function(test_run_)
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.print("test:run #" .. test_run_to_display_index, 0, 0)
+    love.graphics.setColor(0.85, 0.85, 0.85)
+    draw_line(data_.input.line_origin)
+    -- current_run.curve_out_out
+    -- current_run.curve_out_center
+    -- current_run.tentative_curve_out_in
+    -- current_run.tentative_straight_out
+
+    love.graphics.setColor(1, 0, 0)
+    draw_circle(test_run_.curve_out_center, 3 / GFX_SCALE, "fill")
+
+    love.graphics.setColor(alt_colour)
+    draw_segment(data_.input.destination_.position, test_run_.curve_out_out.position)
+    love.graphics.setColor(alt_colour)
+    draw_segment(test_run_.tentative_curve_out_in.position, test_run_.tentative_straight_out.position)
+
+    draw_gizmo(test_run_.tentative_straight_out)
+  end
+
+  local do_draw = function()
+    -- draw_segment(data_.curve_out_center, data_.straight_out.position)
+    -- draw_segment(data_.curve_out_center, data_.curve_out_in.position)
+
+    -- curve_out lines
+    love.graphics.setColor(alt_colour)
+    if data_.curve_out_out then
+      draw_segment(data_.input.destination_.position, data_.curve_out_out.position)
+    end
+
+    love.graphics.setColor(alt_colour)
+    if data_.curve_out_in and data_.straight_out then
+      draw_segment(data_.curve_out_in.position, data_.straight_out.position)
+    end
+
+    -- -- straight
+    love.graphics.setColor(colour_)
+    if data_.straight_out then
+      draw_segment(data_.input.origin_.position, data_.straight_out.position)
+    end
+
+    love.graphics.setColor(1, 0, 0)
+    if data_.curve_out_center then
+      draw_circle(data_.curve_out_center, 3 / GFX_SCALE, "fill")
+    end
+    -- love.graphics.setColor(0, 1, 0)
+    -- --draw_circle(data_.curve_out_in_center, 3 / GFX_SCALE, "fill")
+
+    -- draw_gizmo(data_.curve_out_out)
+    -- draw_gizmo(data_.curve_out_in)
+
+    -- "end"
+
+    if data_.curve_out_angles and data_.curve_out_center then
+      if data_.curve_out_angles.start ~= math.huge and data_.curve_out_angles.finish ~= math.huge then
+        local draw_start, draw_finish =
+          adjust_arc_start_finish(
+          data_.curve_out_angles.start,
+          data_.curve_out_angles.finish,
+          data_.input.turning_direction_out_ * _direction
+        )
+
+        love.graphics.arc(
+          "line",
+          "open",
+          sc_x(data_.curve_out_center.x),
+          disp_y(sc_y(data_.curve_out_center.y)),
+          GFX_SCALE * data_.res_out.curve_radius,
+          draw_start,
+          draw_finish
+        )
+      end
+    end
+  end
+
+  --do_draw_test_run(test_run_to_display)
+  do_draw()
+  -- _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
+  love.graphics.setColor(0, 0, 0)
+  love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total) .. "\nSC", 5, 5)
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
+local function draw_curve_straight(data_, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  local alt_colour = {colour_[1] * 0.5, colour_[2] * 0.5, colour_[3] * 0.5}
+
+  if not _G._start_time then
+    _G._start_time = 0
+  end
+
+  if _computed_data.is_freshly_computed then
+    _G._start_time = _run_timer
+  end
+
+  local time_since_timer_start = _run_timer - _G._start_time
+  time_since_timer_start = math.floor(time_since_timer_start)
+
+  local test_run_to_display_index = 1 + time_since_timer_start % #data_.test_runs
+
+  --print("#data_.test_runs", #data_.test_runs, "test_run_to_display_index", test_run_to_display_index)
+
+  local test_run_to_display = data_.test_runs[test_run_to_display_index]
+
+  --require "pl/pretty".dump(test_run_to_display)
+
+  local do_draw_test_run = function(test_run_)
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.print("test:run #" .. test_run_to_display_index, 0, 0)
+    love.graphics.setColor(0.85, 0.85, 0.85)
+    draw_line(data_.input.line_destination)
+    -- current_run.curve_out_out
+    -- current_run.curve_out_center
+    -- current_run.tentative_curve_out_in
+    -- current_run.tentative_straight_out
+
+    --require "pl/pretty".dump(test_run_)
+
+    love.graphics.setColor(1, 0, 0)
+    draw_circle(test_run_.curve_in_center, 3 / GFX_SCALE, "fill")
+
+    love.graphics.setColor(alt_colour)
+    draw_segment(data_.input.origin_.position, test_run_.curve_in_in.position)
+    love.graphics.setColor(alt_colour)
+    draw_segment(test_run_.tentative_curve_in_out.position, test_run_.tentative_in_straight.position)
+
+    draw_gizmo(test_run_.tentative_in_straight)
+  end
+
+  local do_draw = function()
+    -- draw_segment(data_.curve_out_center, data_.straight_out.position)
+    -- draw_segment(data_.curve_out_center, data_.curve_out_in.position)
+
+    -- curve_out lines
+    love.graphics.setColor(alt_colour)
+    if data_.curve_in_in then
+      draw_segment(data_.input.origin_.position, data_.curve_in_in.position)
+    end
+
+    love.graphics.setColor(alt_colour)
+    if data_.curve_in_out and data_.in_straight then
+      draw_segment(data_.curve_in_out.position, data_.in_straight.position)
+    end
+
+    -- -- straight
+    love.graphics.setColor(colour_)
+    if data_.in_straight then
+      draw_segment(data_.input.destination_.position, data_.in_straight.position)
+    end
+
+    love.graphics.setColor(1, 0, 0)
+    if data_.curve_in_center then
+      draw_circle(data_.curve_in_center, 3 / GFX_SCALE, "fill")
+    end
+    -- love.graphics.setColor(0, 1, 0)
+    -- --draw_circle(data_.curve_out_in_center, 3 / GFX_SCALE, "fill")
+
+    -- draw_gizmo(data_.curve_out_out)
+    -- draw_gizmo(data_.curve_out_in)
+
+    -- "end"
+
+    if data_.curve_in_angles and data_.curve_in_center then
+      if data_.curve_in_angles.start ~= math.huge and data_.curve_in_angles.finish ~= math.huge then
+        local draw_start, draw_finish =
+          adjust_arc_start_finish(
+          data_.curve_in_angles.start,
+          data_.curve_in_angles.finish,
+          data_.input.turning_direction_in_ * _direction
+        )
+
+        love.graphics.arc(
+          "line",
+          "open",
+          sc_x(data_.curve_in_center.x),
+          disp_y(sc_y(data_.curve_in_center.y)),
+          GFX_SCALE * data_.res_in.curve_radius,
+          draw_start,
+          draw_finish
+        )
+      end
+    end
+  end
+
+  --do_draw_test_run(test_run_to_display)
+  do_draw()
+  -- _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
+
+  love.graphics.setColor(0, 0, 0)
+  love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total) .. "\nCS", 5, 5)
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
 local function draw_curve(data_, colour_)
   -- if data_.segments_length_total == math.huge then
   --   return
@@ -637,7 +855,7 @@ local function draw_curve(data_, colour_)
     end
 
     love.graphics.setColor(0, 0, 0)
-    love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total), 5, 5)
+    love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total) .. "\nCSC", 5, 5)
     ---------------
 
     -- love.graphics.setColor(colour_actual_radius)
@@ -759,7 +977,20 @@ function love.draw()
   draw_one(origin, {r = 1, g = 1, b = 0})
   draw_one(destination, {r = 0, g = 0, b = 1})
 
-  if _what_to_test == _WHAT_TO_TEST__TEST_NEW then
+  if _what_to_test == _WHAT_TO_TEST__STRAIGHT then
+    local colour = {0, 1, 1}
+    draw_straight(_computed_data.check_data, colour)
+  elseif _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT or _what_to_test == _WHAT_TO_TEST__STRAIGHT_RIGHT then
+    if _computed_data.check_data then
+      local colour = {0, 1, 1}
+      draw_straight_curve(_computed_data.check_data, colour)
+    end
+  elseif _what_to_test == _WHAT_TO_TEST__LEFT_STRAIGHT or _what_to_test == _WHAT_TO_TEST__RIGHT_STRAIGHT then
+    if _computed_data.check_data then
+      local colour = {0, 1, 1}
+      draw_curve_straight(_computed_data.check_data, colour)
+    end
+  elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
     if _computed_data.best_data then
       local colour = {0, 1, 1}
       draw_curve(_computed_data.best_data, colour)
@@ -791,6 +1022,21 @@ function love.draw()
       draw_curve(_computed_data.lsr_data, lsr_colour)
     elseif _computed_data.rsl_data and _computed_data.shortest_word == "rsl" then
       draw_curve(_computed_data.rsl_data, rsl_colour)
+    end
+  elseif _what_to_test == _WHAT_TO_TEST__ALL then
+    local colour = {0, 1, 1}
+    if _computed_data.best_word == _WHAT_TO_TEST__STRAIGHT then
+      draw_straight(_computed_data.best_straight, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__STRAIGHT_LEFT then
+      draw_straight_curve(_computed_data.best_straight_left, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__STRAIGHT_RIGHT then
+      draw_straight_curve(_computed_data.best_straight_right, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__LEFT_STRAIGHT then
+      draw_curve_straight(_computed_data.best_left_straight, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__RIGHT_STRAIGHT then
+      draw_curve_straight(_computed_data.best_right_straight, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__TEST_NEW then
+      draw_curve(_computed_data.best_curve_straight_curve, colour)
     end
   end
 end

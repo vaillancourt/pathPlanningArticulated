@@ -81,6 +81,21 @@ function VehicleData:new(o)
     local rearBodyAngle = tonumber(line_content[rearBodyHeading__])
     local jointAngle = tonumber(line_content[jointAngle__])
 
+    -- find the center of rotation
+    local center = Vector2(0, turning_radius)
+    center:rotate(rearBodyAngle)
+    center = center + rearBodyPos
+
+    local a = math.abs(jointAngle)
+    local b = math.pi / 2 - a
+    local R = 3.50466
+    local F = 1.165728
+    local PQ = F / math.cos(a)
+    local CR = math.tan(b) * (R + PQ)
+
+    --print("jointAngle", jointAngle, "turning_radius", turning_radius, "CR", CR)
+    -- print(phase, entryId, center.x, center.y, center:length())
+
     if entryId == 1 then
       data[phase] = {entries = {}, last_entry = 0}
     end
@@ -92,7 +107,9 @@ function VehicleData:new(o)
         rear_body_angle = rearBodyAngle,
         joint_angle = jointAngle,
         turning_radius = turning_radius,
-        entry_id = entryId
+        entry_id = entryId,
+        center_of_rotation = center,
+        distance_to_center_of_rotation = center:length()
       }
     )
     if entryId > data[phase].last_entry then
@@ -177,13 +194,17 @@ function VehicleData.get_estimated_values_for_ratio(self_, direction_, entry_spe
     local ratio_from_entry_1_to_entry_2 =
       (desired_angle - math.abs(entry_1.joint_angle)) / (math.abs(entry_2.joint_angle) - math.abs(entry_1.joint_angle))
 
-    return {
+    local curve_entry_location = {
       position = Vector2(
         lerp(entry_1.rear_body_pos.x, entry_2.rear_body_pos.x, ratio_from_entry_1_to_entry_2),
         lerp(entry_1.rear_body_pos.y, entry_2.rear_body_pos.y, ratio_from_entry_1_to_entry_2)
       ),
       orientation = lerp(entry_1.rear_body_angle, entry_2.rear_body_angle, ratio_from_entry_1_to_entry_2)
-    }, CR
+    }
+
+    local turning_radius = lerp(entry_1.turning_radius, entry_2.turning_radius, ratio_from_entry_1_to_entry_2)
+
+    return curve_entry_location, turning_radius
   end
 
   local get_curve_exit_data = function()
@@ -259,17 +280,28 @@ function VehicleData.get_estimated_values_for_ratio(self_, direction_, entry_spe
 
     local adjusted_position = last_entry_data.rear_body_pos - interpolated_position
     local adjusted_orientation = last_entry_data.rear_body_angle - interpolated_orientation
-    return {position = adjusted_position, orientation = adjusted_orientation}
+
+    local turning_radius = lerp(entry_2.turning_radius, entry_1.turning_radius, ratio_from_entry_2_to_entry_1)
+
+    -- local center = Vector2(0, CR)
+    -- center:rotate(adjusted_orientation)
+    -- center = center + adjusted_position
+
+    return {position = adjusted_position, orientation = adjusted_orientation}, turning_radius
   end
 
-  local curve_entry_location, curve_entry_radius = get_curve_entry_data()
-  local curve_exit_location = get_curve_exit_data()
+  local curve_entry_location, estimated_radius_for_entry = get_curve_entry_data()
+  local curve_exit_location, estimated_radius_for_exit = get_curve_exit_data()
 
   return {
     effective_joint_angle_ratio = desired_angle / self_.theoretical_max_angle,
-    curve_radius = curve_entry_radius,
+    curve_radius = CR, --(estimated_radius_for_entry + estimated_radius_for_exit) / 2,
     curve_entry_location = curve_entry_location,
-    curve_exit_location = curve_exit_location
+    curve_exit_location = curve_exit_location,
+    -- curve_entry_rotation_center = curve_entry_rotation_center,
+    -- curve_exit_rotation_center = curve_exit_rotation_center,
+    estimated_radius_for_entry = estimated_radius_for_entry,
+    estimated_radius_for_exit = estimated_radius_for_exit
   }
 end
 
