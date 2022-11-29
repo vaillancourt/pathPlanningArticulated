@@ -8,7 +8,7 @@ local Vector2 = require "Vector2"
 
 --local test = require "test"
 
-io.stdout:setvbuf("no") -- This makes is so that print() statements print right away.
+io.stdout:setvbuf("no") -- This makes it so that print() statements print right away.
 
 local SCALE = 20.0
 local GFX_SCALE = 20 -- screenshot scale: 20
@@ -39,14 +39,15 @@ local _WHAT_TO_TEST__TEST_NEW = "test-new"
 local _WHAT_TO_TEST__TEST_OLD = "test-old"
 local _WHAT_TO_TEST__STRAIGHT_LEFT = "straight-left"
 local _WHAT_TO_TEST__STRAIGHT_RIGHT = "straight-right"
-local _what_to_test = _WHAT_TO_TEST__STRAIGHT_RIGHT
+local _WHAT_TO_TEST__LEFT_STRAIGHT = "left-straight"
+local _what_to_test = _WHAT_TO_TEST__LEFT_STRAIGHT
 
 local _should_recompute_data = true
 local _computed_data = {is_freshly_computed = true}
 local _run_timer = 0.0
 
 local _direction = Planning.FORWARD
-local _direction_switch_accumulator = 0
+local _direction_switch_accumulator = -math.huge
 
 local function disp_y(y_)
   return window_height - y_
@@ -86,6 +87,8 @@ local function compute_data()
     _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__STRAIGHT_RIGHT then
     _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.RIGHT, _direction)
+  elseif _what_to_test == _WHAT_TO_TEST__LEFT_STRAIGHT then
+    _computed_data.check_data = Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.LEFT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
     _computed_data = {best_data = {}}
     local best_data = nil
@@ -652,6 +655,115 @@ local function draw_straight_curve(data_, colour_)
   love.graphics.setColor(sr, sg, sb, sa)
 end
 
+local function draw_curve_straight(data_, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+
+  local alt_colour = {colour_[1] * 0.5, colour_[2] * 0.5, colour_[3] * 0.5}
+
+  if not _start_time then
+    _start_time = 0
+  end
+
+  if _computed_data.is_freshly_computed then
+    _start_time = _run_timer
+  end
+
+  local time_since_timer_start = _run_timer - _start_time
+  time_since_timer_start = math.floor(time_since_timer_start)
+
+  local test_run_to_display_index = 1 + time_since_timer_start % #data_.test_runs
+
+  --print("#data_.test_runs", #data_.test_runs, "test_run_to_display_index", test_run_to_display_index)
+
+  local test_run_to_display = data_.test_runs[test_run_to_display_index]
+
+  --require "pl/pretty".dump(test_run_to_display)
+
+  local do_draw_test_run = function(test_run_)
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.print("test:run #" .. test_run_to_display_index, 0, 0)
+    love.graphics.setColor(0.85, 0.85, 0.85)
+    draw_line(data_.input.line_destination)
+    -- current_run.curve_out_out
+    -- current_run.curve_out_center
+    -- current_run.tentative_curve_out_in
+    -- current_run.tentative_straight_out
+
+    --require "pl/pretty".dump(test_run_)
+
+    love.graphics.setColor(1, 0, 0)
+    draw_circle(test_run_.curve_in_center, 3 / GFX_SCALE, "fill")
+
+    love.graphics.setColor(alt_colour)
+    draw_segment(data_.input.origin_.position, test_run_.curve_in_in.position)
+    love.graphics.setColor(alt_colour)
+    draw_segment(test_run_.tentative_curve_in_out.position, test_run_.tentative_in_straight.position)
+
+    draw_gizmo(test_run_.tentative_in_straight)
+  end
+
+  local do_draw = function()
+    -- draw_segment(data_.curve_out_center, data_.straight_out.position)
+    -- draw_segment(data_.curve_out_center, data_.curve_out_in.position)
+
+    -- curve_out lines
+    love.graphics.setColor(alt_colour)
+    if data_.curve_in_in then
+      draw_segment(data_.input.origin_.position, data_.curve_in_in.position)
+    end
+
+    love.graphics.setColor(alt_colour)
+    if data_.curve_in_out and data_.in_straight then
+      draw_segment(data_.curve_in_out.position, data_.in_straight.position)
+    end
+
+    -- -- straight
+    love.graphics.setColor(colour_)
+    if data_.in_straight then
+      draw_segment(data_.input.destination_.position, data_.in_straight.position)
+    end
+
+    love.graphics.setColor(1, 0, 0)
+    if data_.curve_in_center then
+      draw_circle(data_.curve_in_center, 3 / GFX_SCALE, "fill")
+    end
+    -- love.graphics.setColor(0, 1, 0)
+    -- --draw_circle(data_.curve_out_in_center, 3 / GFX_SCALE, "fill")
+
+    -- draw_gizmo(data_.curve_out_out)
+    -- draw_gizmo(data_.curve_out_in)
+
+    -- "end"
+
+    if data_.curve_in_angles and data_.curve_in_center then
+      if data_.curve_in_angles.start ~= math.huge and data_.curve_in_angles.finish ~= math.huge then
+        local draw_start, draw_finish =
+          adjust_arc_start_finish(
+          data_.curve_in_angles.start,
+          data_.curve_in_angles.finish,
+          data_.input.turning_direction_in_ * _direction
+        )
+
+        love.graphics.arc(
+          "line",
+          "open",
+          sc_x(data_.curve_in_center.x),
+          disp_y(sc_y(data_.curve_in_center.y)),
+          GFX_SCALE * data_.res_in.curve_radius,
+          draw_start,
+          draw_finish
+        )
+      end
+    end
+  end
+
+  --do_draw_test_run(test_run_to_display)
+  do_draw()
+  -- _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
+
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
 local function draw_curve(data_, colour_)
   -- if data_.segments_length_total == math.huge then
   --   return
@@ -879,6 +991,11 @@ function love.draw()
     if _computed_data.check_data then
       local colour = {0, 1, 1}
       draw_straight_curve(_computed_data.check_data, colour)
+    end
+  elseif _what_to_test == _WHAT_TO_TEST__LEFT_STRAIGHT then
+    if _computed_data.check_data then
+      local colour = {0, 1, 1}
+      draw_curve_straight(_computed_data.check_data, colour)
     end
   elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
     if _computed_data.best_data then

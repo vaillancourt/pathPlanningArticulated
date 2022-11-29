@@ -51,6 +51,215 @@ function Planning.Straight(origin_, destination_)
   return is_same_line and Common.equivalent(origin_.orientation, destination_.orientation)
 end
 
+function Planning.Curve_Straight(origin_, destination_, vehicle_data_, start_state_, turning_direction_in_, direction_)
+  local line_destination = Common.get_line_from_point_slope(destination_.position, destination_.orientation)
+  local td_i = turning_direction_in_
+  local dir_as_text = "FORWARD"
+
+  if direction_ == Planning.REVERSE then
+    dir_as_text = "REVERSE"
+  end
+
+  assert(td_i == Planning.LEFT or td_i == Planning.RIGHT, "invalid direction")
+
+  local found = false
+
+  local min_ratio =
+    vehicle_data_:get_estimated_values_for_ratio(dir_as_text, start_state_, 0.0).effective_joint_angle_ratio
+  local max_ratio =
+    vehicle_data_:get_estimated_values_for_ratio(dir_as_text, start_state_, 1.0).effective_joint_angle_ratio
+  local lower_bound = min_ratio
+  local upper_bound = max_ratio
+
+  local return_dict = {
+    input = {
+      origin_ = origin_,
+      destination_ = destination_,
+      start_state_ = start_state_,
+      turning_direction_in_ = turning_direction_in_,
+      direction_ = direction_,
+      line_destination = line_destination
+    },
+    test_count = 0,
+    test_runs = {},
+    segments_length_total = math.huge
+  }
+
+  while not found do
+    return_dict.test_count = return_dict.test_count + 1
+
+    if return_dict.test_count > 100 then
+      -- Something is wrong, it shouldn't take that many tries.
+      assert(false)
+    end
+
+    local should_report = false --return_dict.test_count > 50
+
+    local current_run = {}
+    local current_ratio_test = lower_bound + (upper_bound - lower_bound) / 2.0
+    current_run.current_ratio_test = current_ratio_test
+    current_run.lower_bound = lower_bound
+    current_run.upper_bound = upper_bound
+    current_run.min_ratio = min_ratio
+    current_run.max_ratio = max_ratio
+
+    if Common.equivalent(current_ratio_test, min_ratio) or Common.equivalent(current_ratio_test, max_ratio) then
+      -- These should be tested on their own, not doing this check here results in an infinite loop. The rationale here
+      -- is that it will either make it or break it: if the ratio does not give the results, the function will return
+      -- without providing valid results and the receiving end will conclude "no path"; if this value is the right one,
+      -- then the function will return valid data and everyone will be happy.😊
+      found = true
+    end
+
+    -- res_in = {
+    --   effective_joint_angle_ratio = desired_angle / self_.theoretical_max_angle,
+    --   curve_radius = CR, --(estimated_radius_for_entry + estimated_radius_for_exit) / 2,
+    --   curve_entry_location = curve_entry_location,
+    --   curve_exit_location = curve_exit_location,
+    --   estimated_radius_for_entry = estimated_radius_for_entry,
+    --   estimated_radius_for_exit = estimated_radius_for_exit
+    -- }
+    local res_in = vehicle_data_:get_estimated_values_for_ratio(dir_as_text, start_state_, current_ratio_test)
+    current_run.res_in = res_in
+
+    local curve_in_offset_enter = res_in.curve_entry_location
+    local curve_in_radius = res_in.curve_radius
+    local curve_in_offset_exit = res_in.curve_exit_location
+
+    local ci_cii = {
+      position = Vector2(curve_in_offset_enter.position.x, curve_in_offset_enter.position.y * td_i),
+      orientation = curve_in_offset_enter.orientation * td_i
+    }
+
+    local cio_si = {
+      position = Vector2(curve_in_offset_exit.position.x, curve_in_offset_exit.position.y * td_i),
+      orientation = curve_in_offset_exit.orientation * td_i
+    }
+
+    current_run.ci_cii = ci_cii
+    current_run.cio_si = cio_si
+
+    -- Find where the vehicle enters the first curve
+    -- cii
+    local curve_in_in = Planning.transform_local_to_world(origin_, ci_cii)
+    current_run.curve_in_in = curve_in_in
+
+    -- Find where is the center of rotation once the vehicle is in the curve
+    local curve_in_in_side = Vector2(1, 0):rotate_copy(Common.over_2pi(curve_in_in.orientation + td_i * (math.pi / 2)))
+    -- cic
+    local curve_in_center = curve_in_in.position + (curve_in_in_side * curve_in_radius)
+    current_run.curve_in_center = curve_in_center
+
+    local pseudo_in_straight = Planning.transform_local_to_world(curve_in_in, cio_si)
+    current_run.pseudo_in_straight = pseudo_in_straight
+
+    local diff_angle = destination_.orientation - pseudo_in_straight.orientation
+    current_run.diff_angle = diff_angle
+
+    local tentative_curve_in_out = {
+      position = curve_in_in.position:rotate_about_point_copy(curve_in_center, diff_angle),
+      orientation = curve_in_in.orientation + diff_angle
+    }
+    current_run.tentative_curve_in_out = tentative_curve_in_out
+
+    local tentative_in_straight = {
+      position = pseudo_in_straight.position:rotate_about_point_copy(curve_in_center, diff_angle),
+      orientation = pseudo_in_straight.orientation + diff_angle
+    }
+    current_run.tentative_in_straight = tentative_in_straight
+
+    local MARGIN_OF_ERROR = 0.00001
+
+    local distance_to_line, point_on_line =
+      Common.get_distance_line_point(line_destination, tentative_in_straight.position)
+    current_run.distance_to_line = distance_to_line
+
+    if Common.equivalent(distance_to_line, 0.0) then
+      -- we get a match
+      found = true
+
+      local is_in_front = function()
+        -- Move the tentative_straight_out in local frame of the vehicle destination_
+        local local_in_straight = tentative_in_straight.position - destination_.position
+        local_in_straight:rotate(-destination_.orientation)
+        -- check if in front
+        if direction_ == Planning.REVERSE then
+          return local_in_straight.x < 0.0
+        else
+          return local_in_straight.x > 0.0
+        end
+      end
+
+      if not is_in_front() then
+        -- We do further calculations if it is not in front; if those values are not supplied, the receiving end will
+        -- assume "no path".
+        return_dict.res_in = res_in
+        return_dict.ci_cii = ci_cii
+        return_dict.cio_si = cio_si
+        return_dict.curve_in_in = curve_in_in
+        return_dict.curve_in_center = curve_in_center
+
+        return_dict.in_straight = tentative_in_straight
+
+        local curve_in_out = tentative_curve_in_out
+        return_dict.curve_in_out = curve_in_out
+
+        local status2, segment_3_length, origin_angle_in, origin_angle_out =
+          pcall(
+          Common.get_arc_data,
+          curve_in_center,
+          curve_in_radius,
+          curve_in_in.position,
+          curve_in_out.position,
+          direction_ * td_i,
+          MARGIN_OF_ERROR * 100
+        )
+
+        if status2 then
+          return_dict.curve_in_angles = {start = origin_angle_in, finish = origin_angle_out}
+
+          local straigth_length = (tentative_in_straight.position - destination_.position):length()
+          return_dict.segments_lengths = {
+            straigth_length,
+            segment_3_length
+          }
+
+          return_dict.segments_length_total =
+            straigth_length + ci_cii.position:length() + segment_3_length + cio_si.position:length()
+        end
+      end
+    else
+      -- check wheter we've overshot or we've undershot
+      local distance_to_point_on_line = (point_on_line - curve_in_center):length()
+      local distance_to_point = (tentative_in_straight.position - curve_in_center):length()
+
+      current_run.distance_to_point_on_line = distance_to_point_on_line
+      current_run.distance_to_point = distance_to_point
+
+      if Common.equivalent(distance_to_point_on_line, distance_to_point) then
+        -- we've explored all the space we had, no path.
+        found = true
+      elseif distance_to_point > distance_to_point_on_line then
+        -- we're too far away
+        -- this means that the chosen ratio was too small
+        lower_bound = current_ratio_test
+      else -- distance_to_point < distance_to_point_on_line then
+        -- we overshot
+        -- this means that the chosen ratio was too big
+        upper_bound = current_ratio_test
+      end
+    end
+
+    if should_report then
+      require "pl/pretty".dump(current_run)
+    end
+
+    table.insert(return_dict.test_runs, current_run)
+  end
+
+  return return_dict
+end
+
 function Planning.Straight_Curve(origin_, destination_, vehicle_data_, turning_direction_out_, direction_)
   local line_origin = Common.get_line_from_point_slope(origin_.position, origin_.orientation)
   local td_o = turning_direction_out_
