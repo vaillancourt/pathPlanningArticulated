@@ -90,7 +90,7 @@ function Planning.Curve_Straight(origin_, destination_, vehicle_data_, start_sta
 
     if return_dict.test_count > 100 then
       -- Something is wrong, it shouldn't take that many tries.
-      assert(false)
+      found = true
     end
 
     local should_report = false --return_dict.test_count > 50
@@ -469,8 +469,8 @@ function Planning.Straight_Curve(origin_, destination_, vehicle_data_, turning_d
 end
 
 --[[
-Test the "words" Curve-Straight-Curve: LSL, RSR, LSR and RSL; they all use a similar approach, with the minor differences
-in the signs.
+Test the "words" Curve-Straight-Curve: LSL, RSR, LSR and RSL; they all use a similar approach, with the minor
+differences in the signs.
 ]]
 function Planning.ComputePath(
   origin_,
@@ -798,6 +798,88 @@ function Planning.ComputePath(
     coo_co.position:length()
 
   return return_dict
+end
+
+function Planning.Curve_Straight_Curve(origin_, destination_, vehicle_data_, start_state_, direction_)
+  local best_data = nil
+  local shortest_length = math.huge
+
+  for i = 0, 10, 1 do
+    local ii = i / 10
+    ii = math.max(0.05, ii)
+
+    for j = 0, 10, 1 do
+      local jj = j / 10
+      jj = math.max(0.05, jj)
+      local new_lsl =
+        Planning.ComputePath(
+        origin_,
+        destination_,
+        vehicle_data_,
+        start_state_,
+        Planning.LEFT,
+        Planning.LEFT,
+        ii,
+        jj,
+        direction_
+      )
+      local new_rsr =
+        Planning.ComputePath(
+        origin_,
+        destination_,
+        vehicle_data_,
+        start_state_,
+        Planning.RIGHT,
+        Planning.RIGHT,
+        ii,
+        jj,
+        direction_
+      )
+      local new_rsl =
+        Planning.ComputePath(
+        origin_,
+        destination_,
+        vehicle_data_,
+        start_state_,
+        Planning.RIGHT,
+        Planning.LEFT,
+        ii,
+        jj,
+        direction_
+      )
+      local new_lsr =
+        Planning.ComputePath(
+        origin_,
+        destination_,
+        vehicle_data_,
+        start_state_,
+        Planning.LEFT,
+        Planning.RIGHT,
+        ii,
+        jj,
+        direction_
+      )
+
+      if new_lsl.segments_length_total < shortest_length then
+        shortest_length = new_lsl.segments_length_total
+        best_data = new_lsl
+      end
+      if new_rsr.segments_length_total < shortest_length then
+        shortest_length = new_rsr.segments_length_total
+        best_data = new_rsr
+      end
+      if new_rsl.segments_length_total < shortest_length then
+        shortest_length = new_rsl.segments_length_total
+        best_data = new_rsl
+      end
+      if new_lsr.segments_length_total < shortest_length then
+        shortest_length = new_lsr.segments_length_total
+        best_data = new_lsr
+      end
+    end
+  end
+
+  return best_data
 end
 
 return Planning

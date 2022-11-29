@@ -41,13 +41,20 @@ local _WHAT_TO_TEST__STRAIGHT_LEFT = "straight-left"
 local _WHAT_TO_TEST__STRAIGHT_RIGHT = "straight-right"
 local _WHAT_TO_TEST__LEFT_STRAIGHT = "left-straight"
 local _WHAT_TO_TEST__RIGHT_STRAIGHT = "right-straight"
-local _what_to_test = _WHAT_TO_TEST__RIGHT_STRAIGHT
+local _WHAT_TO_TEST__ALL = "tes-all"
+local _what_to_test = _WHAT_TO_TEST__ALL
 
 local _should_recompute_data = true
 local _computed_data = {is_freshly_computed = true}
 local _run_timer = 0.0
 
-local _direction = Planning.REVERSE
+-- About those two lines:
+-- if _direction_switch_accumulator is set to 0, the direction will alternate between forward and reverse;
+-- if _direction_switch_accumulator is set to -math.huge, the direction will be stuck at what is set to _direction.
+--
+-- So if one wants to test a specific direction, then setting _direction_switch_accumulator to -math.huge and _direction
+-- to the desired direction is the way to go.
+local _direction = Planning.FORWARD
 local _direction_switch_accumulator = 0
 
 local function disp_y(y_)
@@ -89,90 +96,13 @@ local function compute_data()
   elseif _what_to_test == _WHAT_TO_TEST__STRAIGHT_RIGHT then
     _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.RIGHT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__LEFT_STRAIGHT then
-    _computed_data.check_data = Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.LEFT, _direction)
+    _computed_data.check_data =
+      Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.LEFT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__RIGHT_STRAIGHT then
-    _computed_data.check_data = Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.RIGHT, _direction)
+    _computed_data.check_data =
+      Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.RIGHT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
-    _computed_data = {best_data = {}}
-    local best_data = nil
-    local shortest_length = math.huge
-
-    for i = 0, 10, 1 do
-      local ii = i / 10
-      ii = math.max(0.05, ii)
-
-      for j = 0, 10, 1 do
-        local jj = j / 10
-        jj = math.max(0.05, jj)
-        local new_lsl =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.LEFT,
-          Planning.LEFT,
-          ii,
-          jj,
-          _direction
-        )
-        local new_rsr =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.RIGHT,
-          Planning.RIGHT,
-          ii,
-          jj,
-          _direction
-        )
-        local new_rsl =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.RIGHT,
-          Planning.LEFT,
-          ii,
-          jj,
-          _direction
-        )
-        local new_lsr =
-          Planning.ComputePath(
-          origin,
-          destination,
-          vehicle_data,
-          Planning.START_STOPPED,
-          Planning.LEFT,
-          Planning.RIGHT,
-          ii,
-          jj,
-          _direction
-        )
-
-        if new_lsl.segments_length_total < shortest_length then
-          shortest_length = new_lsl.segments_length_total
-          best_data = new_lsl
-        end
-        if new_rsr.segments_length_total < shortest_length then
-          shortest_length = new_rsr.segments_length_total
-          best_data = new_rsr
-        end
-        if new_rsl.segments_length_total < shortest_length then
-          shortest_length = new_rsl.segments_length_total
-          best_data = new_rsl
-        end
-        if new_lsr.segments_length_total < shortest_length then
-          shortest_length = new_lsr.segments_length_total
-          best_data = new_lsr
-        end
-      end
-    end
-
-    _computed_data.best_data = best_data
+    _computed_data.best_data = Planning.Curve_Straight_Curve(origin, destination, vehicle_data, "MOVING", _direction)
   elseif _what_to_test == _WHAT_TO_TEST__TEST_OLD then
     -- This part of the "if" is there to test specific parameters of the algorithm.
     local lsl_evaluate = true
@@ -268,9 +198,41 @@ local function compute_data()
       -- shortest_length = rsl_data.segments_length_total
       _computed_data.shortest_word = "rsl"
     end
+  elseif _what_to_test == _WHAT_TO_TEST__ALL then
+    _computed_data.best_straight_left =
+      Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
+    _computed_data.best_straight_right =
+      Planning.Straight_Curve(origin, destination, vehicle_data, Planning.RIGHT, _direction)
+    _computed_data.best_left_straight =
+      Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.LEFT, _direction)
+    _computed_data.best_right_straight =
+      Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.RIGHT, _direction)
+    _computed_data.best_curve_straight_curve =
+      Planning.Curve_Straight_Curve(origin, destination, vehicle_data, "MOVING", _direction)
 
-  --print("shortest_word", shortest_word)
-  -- elseif _what_to_test == _WHAT_TO_TEST__
+    _computed_data.shortest_path = math.huge
+    _computed_data.best_word = ""
+
+    if _computed_data.best_straight_left.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_straight_left.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__STRAIGHT_LEFT
+    end
+    if _computed_data.best_straight_right.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_straight_right.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__STRAIGHT_RIGHT
+    end
+    if _computed_data.best_left_straight.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_left_straight.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__LEFT_STRAIGHT
+    end
+    if _computed_data.best_right_straight.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_right_straight.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__RIGHT_STRAIGHT
+    end
+    if _computed_data.best_curve_straight_curve.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_curve_straight_curve.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__TEST_NEW
+    end
   end
 end
 
@@ -557,15 +519,15 @@ local function draw_straight_curve(data_, colour_)
 
   local alt_colour = {colour_[1] * 0.5, colour_[2] * 0.5, colour_[3] * 0.5}
 
-  if not _start_time then
-    _start_time = 0
+  if not _G._start_time then
+    _G._start_time = 0
   end
 
   if _computed_data.is_freshly_computed then
-    _start_time = _run_timer
+    _G._start_time = _run_timer
   end
 
-  local time_since_timer_start = _run_timer - _start_time
+  local time_since_timer_start = _run_timer - _G._start_time
   time_since_timer_start = math.floor(time_since_timer_start)
 
   local test_run_to_display_index = 1 + time_since_timer_start % #data_.test_runs
@@ -655,6 +617,8 @@ local function draw_straight_curve(data_, colour_)
   --do_draw_test_run(test_run_to_display)
   do_draw()
   -- _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
+  love.graphics.setColor(0, 0, 0)
+  love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total), 5, 5)
 
   love.graphics.setColor(sr, sg, sb, sa)
 end
@@ -664,15 +628,15 @@ local function draw_curve_straight(data_, colour_)
 
   local alt_colour = {colour_[1] * 0.5, colour_[2] * 0.5, colour_[3] * 0.5}
 
-  if not _start_time then
-    _start_time = 0
+  if not _G._start_time then
+    _G._start_time = 0
   end
 
   if _computed_data.is_freshly_computed then
-    _start_time = _run_timer
+    _G._start_time = _run_timer
   end
 
-  local time_since_timer_start = _run_timer - _start_time
+  local time_since_timer_start = _run_timer - _G._start_time
   time_since_timer_start = math.floor(time_since_timer_start)
 
   local test_run_to_display_index = 1 + time_since_timer_start % #data_.test_runs
@@ -765,6 +729,8 @@ local function draw_curve_straight(data_, colour_)
   do_draw()
   -- _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
 
+  love.graphics.setColor(0, 0, 0)
+  love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total), 5, 5)
   love.graphics.setColor(sr, sg, sb, sa)
 end
 
@@ -1033,6 +999,19 @@ function love.draw()
       draw_curve(_computed_data.lsr_data, lsr_colour)
     elseif _computed_data.rsl_data and _computed_data.shortest_word == "rsl" then
       draw_curve(_computed_data.rsl_data, rsl_colour)
+    end
+  elseif _what_to_test == _WHAT_TO_TEST__ALL then
+    local colour = {0, 1, 1}
+    if _computed_data.best_word == _WHAT_TO_TEST__STRAIGHT_LEFT then
+      draw_straight_curve(_computed_data.best_straight_left, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__STRAIGHT_RIGHT then
+      draw_straight_curve(_computed_data.best_straight_right, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__LEFT_STRAIGHT then
+      draw_curve_straight(_computed_data.best_left_straight, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__RIGHT_STRAIGHT then
+      draw_curve_straight(_computed_data.best_right_straight, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__TEST_NEW then
+      draw_curve(_computed_data.best_curve_straight_curve, colour)
     end
   end
 end
