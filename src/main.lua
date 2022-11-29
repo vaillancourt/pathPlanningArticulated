@@ -40,14 +40,15 @@ local _WHAT_TO_TEST__TEST_OLD = "test-old"
 local _WHAT_TO_TEST__STRAIGHT_LEFT = "straight-left"
 local _WHAT_TO_TEST__STRAIGHT_RIGHT = "straight-right"
 local _WHAT_TO_TEST__LEFT_STRAIGHT = "left-straight"
-local _what_to_test = _WHAT_TO_TEST__LEFT_STRAIGHT
+local _WHAT_TO_TEST__RIGHT_STRAIGHT = "right-straight"
+local _what_to_test = _WHAT_TO_TEST__RIGHT_STRAIGHT
 
 local _should_recompute_data = true
 local _computed_data = {is_freshly_computed = true}
 local _run_timer = 0.0
 
-local _direction = Planning.FORWARD
-local _direction_switch_accumulator = -math.huge
+local _direction = Planning.REVERSE
+local _direction_switch_accumulator = 0
 
 local function disp_y(y_)
   return window_height - y_
@@ -89,6 +90,8 @@ local function compute_data()
     _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.RIGHT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__LEFT_STRAIGHT then
     _computed_data.check_data = Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.LEFT, _direction)
+  elseif _what_to_test == _WHAT_TO_TEST__RIGHT_STRAIGHT then
+    _computed_data.check_data = Planning.Curve_Straight(origin, destination, vehicle_data, "MOVING", Planning.RIGHT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__TEST_NEW then
     _computed_data = {best_data = {}}
     local best_data = nil
@@ -267,6 +270,7 @@ local function compute_data()
     end
 
   --print("shortest_word", shortest_word)
+  -- elseif _what_to_test == _WHAT_TO_TEST__
   end
 end
 
@@ -992,7 +996,7 @@ function love.draw()
       local colour = {0, 1, 1}
       draw_straight_curve(_computed_data.check_data, colour)
     end
-  elseif _what_to_test == _WHAT_TO_TEST__LEFT_STRAIGHT then
+  elseif _what_to_test == _WHAT_TO_TEST__LEFT_STRAIGHT or _what_to_test == _WHAT_TO_TEST__RIGHT_STRAIGHT then
     if _computed_data.check_data then
       local colour = {0, 1, 1}
       draw_curve_straight(_computed_data.check_data, colour)
