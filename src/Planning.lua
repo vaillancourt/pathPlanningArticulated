@@ -43,12 +43,22 @@ function Planning.transform_back(local_frame, coords_to_transform)
 end
 
 function Planning.Straight(origin_, destination_)
-  local line_origin = Common.get_line_from_point_slope(origin_)
-  local line_destination = Common.get_line_from_point_slope(destination_)
+  local line_origin = Common.get_line_from_point_slope(origin_.position, origin_.orientation)
+  local line_destination = Common.get_line_from_point_slope(destination_.position, destination_.orientation)
 
   local is_same_line = Common.is_same_line(line_origin, line_destination)
 
-  return is_same_line and Common.equivalent(origin_.orientation, destination_.orientation)
+  local input = {origin_ = origin_, destination_ = destination_}
+  local return_dict = {
+    input = input,
+    segments_length_total = math.huge
+  }
+
+  if is_same_line and Common.equivalent(origin_.orientation, destination_.orientation) then
+    return_dict.segments_length_total = origin_.position:distance(destination_.position)
+  end
+
+  return return_dict
 end
 
 function Planning.Curve_Straight(origin_, destination_, vehicle_data_, start_state_, turning_direction_in_, direction_)

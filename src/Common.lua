@@ -353,7 +353,7 @@ function Common.is_same_line(line_1_, line_2_)
   local y1 = -((line_1_.a / line_1_.b) * 1) - (line_1_.c / line_1_.b)
   local y2 = -((line_2_.a / line_2_.b) * 1) - (line_2_.c / line_2_.b)
 
-  return Common.equivalenty(y1, y2)
+  return Common.equivalent(y1, y2)
 end
 
 function Common.get_line_from_point_slope(point_a_, angle_over_2pi_)

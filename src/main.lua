@@ -37,11 +37,12 @@ local scale_start_location = true
 
 local _WHAT_TO_TEST__TEST_NEW = "test-new"
 local _WHAT_TO_TEST__TEST_OLD = "test-old"
+local _WHAT_TO_TEST__STRAIGHT = "test-straight"
 local _WHAT_TO_TEST__STRAIGHT_LEFT = "straight-left"
 local _WHAT_TO_TEST__STRAIGHT_RIGHT = "straight-right"
 local _WHAT_TO_TEST__LEFT_STRAIGHT = "left-straight"
 local _WHAT_TO_TEST__RIGHT_STRAIGHT = "right-straight"
-local _WHAT_TO_TEST__ALL = "tes-all"
+local _WHAT_TO_TEST__ALL = "test-all"
 local _what_to_test = _WHAT_TO_TEST__ALL
 
 local _should_recompute_data = true
@@ -91,7 +92,9 @@ end
 local function compute_data()
   _computed_data.is_freshly_computed = true
 
-  if _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT then
+  if _what_to_test == _WHAT_TO_TEST__STRAIGHT then
+    _computed_data.check_data = Planning.Straight(origin, destination)
+  elseif _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT then
     _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
   elseif _what_to_test == _WHAT_TO_TEST__STRAIGHT_RIGHT then
     _computed_data.check_data = Planning.Straight_Curve(origin, destination, vehicle_data, Planning.RIGHT, _direction)
@@ -199,6 +202,7 @@ local function compute_data()
       _computed_data.shortest_word = "rsl"
     end
   elseif _what_to_test == _WHAT_TO_TEST__ALL then
+    _computed_data.best_straight = Planning.Straight(origin, destination)
     _computed_data.best_straight_left =
       Planning.Straight_Curve(origin, destination, vehicle_data, Planning.LEFT, _direction)
     _computed_data.best_straight_right =
@@ -213,6 +217,10 @@ local function compute_data()
     _computed_data.shortest_path = math.huge
     _computed_data.best_word = ""
 
+    if _computed_data.best_straight.segments_length_total < _computed_data.shortest_path then
+      _computed_data.shortest_path = _computed_data.best_straight.segments_length_total
+      _computed_data.best_word = _WHAT_TO_TEST__STRAIGHT
+    end
     if _computed_data.best_straight_left.segments_length_total < _computed_data.shortest_path then
       _computed_data.shortest_path = _computed_data.best_straight_left.segments_length_total
       _computed_data.best_word = _WHAT_TO_TEST__STRAIGHT_LEFT
@@ -514,6 +522,18 @@ local function draw_label(text_, position_)
   love.graphics.setColor(sr, sg, sb, sa)
 end
 
+local function draw_straight(data_, colour_)
+  local sr, sg, sb, sa = love.graphics.getColor()
+  if data_.segments_length_total ~= math.huge then
+    love.graphics.setColor(colour_)
+    draw_segment(data_.input.destination_.position, data_.input.origin_.position)
+
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total) .. "\nS", 5, 5)
+  end
+  love.graphics.setColor(sr, sg, sb, sa)
+end
+
 local function draw_straight_curve(data_, colour_)
   local sr, sg, sb, sa = love.graphics.getColor()
 
@@ -618,7 +638,7 @@ local function draw_straight_curve(data_, colour_)
   do_draw()
   -- _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
   love.graphics.setColor(0, 0, 0)
-  love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total), 5, 5)
+  love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total) .. "\nSC", 5, 5)
 
   love.graphics.setColor(sr, sg, sb, sa)
 end
@@ -730,7 +750,7 @@ local function draw_curve_straight(data_, colour_)
   -- _, _ = pcall(do_draw) -- We don't want that a missing variable interupts the execution.
 
   love.graphics.setColor(0, 0, 0)
-  love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total), 5, 5)
+  love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total) .. "\nCS", 5, 5)
   love.graphics.setColor(sr, sg, sb, sa)
 end
 
@@ -835,7 +855,7 @@ local function draw_curve(data_, colour_)
     end
 
     love.graphics.setColor(0, 0, 0)
-    love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total), 5, 5)
+    love.graphics.print("path length: " .. string.format("%.2f", data_.segments_length_total) .. "\nCSC", 5, 5)
     ---------------
 
     -- love.graphics.setColor(colour_actual_radius)
@@ -957,7 +977,10 @@ function love.draw()
   draw_one(origin, {r = 1, g = 1, b = 0})
   draw_one(destination, {r = 0, g = 0, b = 1})
 
-  if _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT or _what_to_test == _WHAT_TO_TEST__STRAIGHT_RIGHT then
+  if _what_to_test == _WHAT_TO_TEST__STRAIGHT then
+    local colour = {0, 1, 1}
+    draw_straight(_computed_data.check_data, colour)
+  elseif _what_to_test == _WHAT_TO_TEST__STRAIGHT_LEFT or _what_to_test == _WHAT_TO_TEST__STRAIGHT_RIGHT then
     if _computed_data.check_data then
       local colour = {0, 1, 1}
       draw_straight_curve(_computed_data.check_data, colour)
@@ -1002,7 +1025,9 @@ function love.draw()
     end
   elseif _what_to_test == _WHAT_TO_TEST__ALL then
     local colour = {0, 1, 1}
-    if _computed_data.best_word == _WHAT_TO_TEST__STRAIGHT_LEFT then
+    if _computed_data.best_word == _WHAT_TO_TEST__STRAIGHT then
+      draw_straight(_computed_data.best_straight, colour)
+    elseif _computed_data.best_word == _WHAT_TO_TEST__STRAIGHT_LEFT then
       draw_straight_curve(_computed_data.best_straight_left, colour)
     elseif _computed_data.best_word == _WHAT_TO_TEST__STRAIGHT_RIGHT then
       draw_straight_curve(_computed_data.best_straight_right, colour)
